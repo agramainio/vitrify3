@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "staging": "vitrify3",
+    "default": "vitrify3"
+  },
+  "targets": {},
+  "etags": {}
+}

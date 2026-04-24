@@ -157,6 +157,119 @@ class AppTheme {
         contentTextStyle: baseTextTheme.bodyMedium,
         behavior: SnackBarBehavior.floating,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.appBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+        titleTextStyle: baseTextTheme.titleLarge,
+        contentTextStyle: baseTextTheme.bodyMedium,
+      ),
+    );
+  }
+}
+
+class AppHeader extends StatelessWidget {
+  const AppHeader({
+    required this.screenName,
+    required this.dateLabel,
+    required this.searchController,
+    this.onSearchChanged,
+    this.onBack,
+    super.key,
+  });
+
+  final String screenName;
+  final String dateLabel;
+  final TextEditingController searchController;
+  final ValueChanged<String>? onSearchChanged;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      color: AppColors.shellBackground,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Row(
+        children: [
+          if (onBack != null) ...[
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                key: const Key('header-back-button'),
+                padding: EdgeInsets.zero,
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: AppColors.iconColor,
+                  size: 20,
+                ),
+                onPressed: onBack,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            flex: 3,
+            child: Text(
+              screenName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(dateLabel, style: AppTypography.dateText),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 4,
+            child: SizedBox(
+              height: 38,
+              child: TextField(
+                key: const Key('global-search-input'),
+                controller: searchController,
+                onChanged: onSearchChanged,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'search',
+                  labelText: null,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppSection extends StatelessWidget {
+  const AppSection({required this.child, this.title, super.key});
+
+  final String? title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null) ...[
+            Text(title!.toUpperCase(), style: AppTypography.sectionLabel),
+            const SizedBox(height: 12),
+          ],
+          child,
+        ],
+      ),
     );
   }
 }

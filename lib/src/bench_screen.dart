@@ -17,9 +17,26 @@ class BenchScreen extends StatefulWidget {
 
 class _BenchScreenState extends State<BenchScreen> {
   int _selectedSection = 0;
-  String? _lastActionMessage;
+  bool _showCreateActions = false;
+  late final TextEditingController _globalSearchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _globalSearchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _globalSearchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _openNewPiece() async {
+    setState(() {
+      _showCreateActions = false;
+    });
+
     final result = await Navigator.of(context).push<List<Piece>>(
       MaterialPageRoute(
         builder: (context) =>
@@ -30,17 +47,10 @@ class _BenchScreenState extends State<BenchScreen> {
     if (!mounted || result == null || result.isEmpty) {
       return;
     }
-
-    setState(() {
-      _lastActionMessage = result.length == 1
-          ? '${result.first.id} created and sent to to_fire.'
-          : '${result.length} pieces created and sent to to_fire.';
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final today = DateUtils.dateOnly(DateTime.now());
     final dateLabel = MaterialLocalizations.of(context).formatMediumDate(today);
 
@@ -51,13 +61,28 @@ class _BenchScreenState extends State<BenchScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                Expanded(child: _buildSectionBody(theme, dateLabel)),
+                AppHeader(
+                  screenName: _screenName,
+                  dateLabel: dateLabel,
+                  searchController: _globalSearchController,
+                  onSearchChanged: (_) {
+                    setState(() {});
+                  },
+                ),
+                Expanded(child: _buildSectionBody()),
+                if (_showCreateActions)
+                  _CreateActionTray(onNewPiece: _openNewPiece),
                 const _BottomBenchNavDivider(),
                 _BottomBenchNav(
                   currentIndex: _selectedSection,
                   onSelected: (index) {
                     setState(() {
-                      _selectedSection = index;
+                      if (index == 2) {
+                        _showCreateActions = !_showCreateActions;
+                      } else {
+                        _selectedSection = index;
+                        _showCreateActions = false;
+                      }
                     });
                   },
                 ),
@@ -69,96 +94,39 @@ class _BenchScreenState extends State<BenchScreen> {
     );
   }
 
-  Widget _buildSectionBody(ThemeData theme, String dateLabel) {
+  String get _screenName {
+    switch (_selectedSection) {
+      case 0:
+        return 'Bench';
+      case 1:
+        return 'All pieces';
+      case 3:
+        return 'Batches';
+      case 4:
+        return 'Jobs';
+      default:
+        return 'Bench';
+    }
+  }
+
+  Widget _buildSectionBody() {
     if (_selectedSection == 0) {
       return ListView(
         padding: EdgeInsets.zero,
         children: [
-          Container(
-            color: AppColors.shellBackground,
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('BENCH', style: AppTypography.sectionLabel),
-                const SizedBox(height: 10),
-                Text('Bench', style: theme.textTheme.headlineLarge),
-                const SizedBox(height: 6),
-                Text(dateLabel, style: AppTypography.dateText),
-              ],
-            ),
-          ),
-          _BenchSection(
-            title: 'Piece intake',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    key: const Key('new-piece-button'),
-                    onPressed: _openNewPiece,
-                    icon: const Icon(Icons.add, color: AppColors.iconColor),
-                    label: const Text('New piece'),
-                  ),
-                ),
-                if (_lastActionMessage != null) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.only(top: 14),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: AppColors.textPrimary),
-                      ),
-                    ),
-                    child: Text(
-                      _lastActionMessage!,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          _BenchSection(
-            title: 'Current state',
-            child: _StateSummaryRow(repository: widget.repository),
-          ),
+          AppSection(child: _StateSummaryRow(repository: widget.repository)),
         ],
       );
     }
 
     if (_selectedSection == 1) {
-      return AllPiecesScreen(repository: widget.repository);
+      return AllPiecesScreen(
+        repository: widget.repository,
+        searchQuery: _globalSearchController.text,
+      );
     }
 
     return _PlaceholderSection(index: _selectedSection);
-  }
-}
-
-class _BenchSection extends StatelessWidget {
-  const _BenchSection({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title.toUpperCase(), style: AppTypography.sectionLabel),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
   }
 }
 
@@ -173,23 +141,23 @@ class _StateSummaryRow extends StatelessWidget {
       children: [
         Expanded(
           child: _StateValue(
-            label: 'to_fire',
+            label: PieceStage.toFire.label,
             count: repository.countPiecesByStage(PieceStage.toFire),
             valueKey: const Key('count-to-fire'),
           ),
         ),
-        const _VerticalStateDivider(),
+        const SizedBox(width: 8),
         Expanded(
           child: _StateValue(
-            label: 'to_glaze',
+            label: PieceStage.toGlaze.label,
             count: repository.countPiecesByStage(PieceStage.toGlaze),
             valueKey: const Key('count-to-glaze'),
           ),
         ),
-        const _VerticalStateDivider(),
+        const SizedBox(width: 8),
         Expanded(
           child: _StateValue(
-            label: 'ready',
+            label: PieceStage.ready.label,
             count: repository.countPiecesByStage(PieceStage.ready),
             valueKey: const Key('count-ready'),
           ),
@@ -213,8 +181,12 @@ class _StateValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.textPrimary),
+        borderRadius: BorderRadius.circular(2),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -230,15 +202,6 @@ class _StateValue extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _VerticalStateDivider extends StatelessWidget {
-  const _VerticalStateDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 54, color: AppColors.textPrimary);
   }
 }
 
@@ -262,6 +225,7 @@ class _BottomBenchNav extends StatelessWidget {
     const items = <({IconData icon, String label})>[
       (icon: Icons.home_outlined, label: 'Bench'),
       (icon: Icons.dehaze, label: 'All pieces'),
+      (icon: Icons.add, label: '+'),
       (icon: Icons.local_fire_department_outlined, label: 'Batches'),
       (icon: Icons.assignment_outlined, label: 'Jobs'),
     ];
@@ -277,7 +241,9 @@ class _BottomBenchNav extends StatelessWidget {
             Expanded(
               child: InkWell(
                 key: Key(
-                  'nav-${items[index].label.toLowerCase().replaceAll(' ', '-')}',
+                  index == 2
+                      ? 'nav-create'
+                      : 'nav-${items[index].label.toLowerCase().replaceAll(' ', '-')}',
                 ),
                 onTap: () => onSelected(index),
                 borderRadius: BorderRadius.circular(2),
@@ -288,7 +254,7 @@ class _BottomBenchNav extends StatelessWidget {
                       top: BorderSide(
                         color: currentIndex == index
                             ? AppColors.iconColor
-                            : Colors.transparent,
+                            : AppColors.shellBackground,
                         width: 2,
                       ),
                     ),
@@ -298,7 +264,7 @@ class _BottomBenchNav extends StatelessWidget {
                     children: [
                       Icon(
                         items[index].icon,
-                        size: 18,
+                        size: index == 2 ? 22 : 18,
                         color: currentIndex == index
                             ? AppColors.iconColor
                             : AppColors.textPrimary,
@@ -326,37 +292,39 @@ class _PlaceholderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const labels = ['Bench', 'All pieces', 'Batches', 'Jobs'];
+    final label = index == 3 ? 'Batches' : 'Jobs';
 
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        Container(
-          color: AppColors.shellBackground,
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                labels[index].toUpperCase(),
-                style: AppTypography.sectionLabel,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                labels[index],
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-            ],
-          ),
-        ),
-        _BenchSection(
-          title: labels[index],
+        AppSection(
           child: Text(
-            '${labels[index]} stays in the shell, but this area remains flat until its operational flow is implemented.',
+            'No ${label.toLowerCase()} yet.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CreateActionTray extends StatelessWidget {
+  const _CreateActionTray({required this.onNewPiece});
+
+  final VoidCallback onNewPiece;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.appBackground,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: FilledButton.icon(
+        key: const Key('new-piece-button'),
+        onPressed: onNewPiece,
+        icon: const Icon(Icons.add, color: AppColors.iconColor),
+        label: const Text('New piece'),
+      ),
     );
   }
 }

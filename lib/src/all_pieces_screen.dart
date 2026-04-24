@@ -2,21 +2,24 @@ import 'package:flutter/material.dart';
 
 import 'design_system.dart';
 import 'models.dart';
-import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
 
 class AllPiecesScreen extends StatefulWidget {
-  const AllPiecesScreen({required this.repository, super.key});
+  const AllPiecesScreen({
+    required this.repository,
+    required this.searchQuery,
+    super.key,
+  });
 
   final StudioRepository repository;
+  final String searchQuery;
 
   @override
   State<AllPiecesScreen> createState() => _AllPiecesScreenState();
 }
 
 class _AllPiecesScreenState extends State<AllPiecesScreen> {
-  late final TextEditingController _searchController;
   late final TextEditingController _moldFilterController;
   late final TextEditingController _colorFilterController;
 
@@ -27,8 +30,6 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController()
-      ..addListener(_handleFilterChange);
     _moldFilterController = TextEditingController()
       ..addListener(_handleFilterChange);
     _colorFilterController = TextEditingController()
@@ -37,9 +38,6 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
 
   @override
   void dispose() {
-    _searchController
-      ..removeListener(_handleFilterChange)
-      ..dispose();
     _moldFilterController
       ..removeListener(_handleFilterChange)
       ..dispose();
@@ -51,16 +49,6 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
 
   void _handleFilterChange() {
     setState(() {});
-  }
-
-  Future<void> _openPiece(Piece piece) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (context) {
-          return PieceDetailScreen(repository: widget.repository, piece: piece);
-        },
-      ),
-    );
   }
 
   Future<void> _editPiece(Piece piece) async {
@@ -126,94 +114,69 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
         return ListView(
           padding: EdgeInsets.zero,
           children: [
-            Container(
-              color: AppColors.shellBackground,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('ALL PIECES', style: AppTypography.sectionLabel),
-                  const SizedBox(height: 10),
-                  Text(
-                    'All pieces',
-                    style: Theme.of(context).textTheme.headlineLarge,
-                  ),
-                ],
+            AppSection(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FilterChip(
+                      key: const Key('stage-filter-all'),
+                      label: 'All statuses',
+                      selected: _stageFilter == null,
+                      onTap: () => setState(() => _stageFilter = null),
+                    ),
+                    for (final stage in PieceStage.values)
+                      _FilterChip(
+                        key: Key('stage-filter-${stage.label}'),
+                        label: stage.label,
+                        selected: _stageFilter == stage,
+                        onTap: () => setState(() => _stageFilter = stage),
+                      ),
+                    _FilterGap(),
+                    _FilterChip(
+                      key: const Key('destination-filter-all'),
+                      label: 'All destinations',
+                      selected: _destinationFilter == null,
+                      onTap: () => setState(() => _destinationFilter = null),
+                    ),
+                    for (final destination in PieceDestination.values)
+                      _FilterChip(
+                        key: Key('destination-filter-${destination.label}'),
+                        label: destination.label,
+                        selected: _destinationFilter == destination,
+                        onTap: () {
+                          setState(() => _destinationFilter = destination);
+                        },
+                      ),
+                    _FilterGap(),
+                    _FilterChip(
+                      key: const Key('failed-only-filter'),
+                      label: 'Failed only',
+                      selected: _failedOnly,
+                      onTap: () {
+                        setState(() => _failedOnly = !_failedOnly);
+                      },
+                    ),
+                    _FilterGap(),
+                    _FilterTextField(
+                      key: const Key('mold-filter-input'),
+                      controller: _moldFilterController,
+                      label: 'Filter by mold',
+                    ),
+                    _FilterGap(),
+                    _FilterTextField(
+                      key: const Key('color-filter-input'),
+                      controller: _colorFilterController,
+                      label: 'Filter by color',
+                    ),
+                  ],
+                ),
               ),
             ),
-            _FlatSection(
-              title: 'Search',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    key: const Key('all-pieces-search'),
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search',
-                      hintText: 'Search piece ID, mold, color, order, workshop',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _FlatSection(
-              title: 'Filters',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _NullableChoiceRow<PieceStage>(
-                    groupKey: 'stage-filter',
-                    value: _stageFilter,
-                    allLabel: 'All statuses',
-                    options: PieceStage.values,
-                    labelOf: (item) => item.label,
-                    onSelected: (value) {
-                      setState(() {
-                        _stageFilter = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _NullableChoiceRow<PieceDestination>(
-                    groupKey: 'destination-filter',
-                    value: _destinationFilter,
-                    allLabel: 'All destinations',
-                    options: PieceDestination.values,
-                    labelOf: (item) => item.label,
-                    onSelected: (value) {
-                      setState(() {
-                        _destinationFilter = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    key: const Key('failed-only-toggle'),
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Failed only',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    activeThumbColor: AppColors.iconColor,
-                    value: _failedOnly,
-                    onChanged: (value) {
-                      setState(() {
-                        _failedOnly = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    key: const Key('mold-filter-input'),
-                    controller: _moldFilterController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mold filter',
-                      hintText: 'Filter by mold',
-                    ),
-                  ),
-                  if (moldSuggestions.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+            if (moldSuggestions.isNotEmpty)
+              AppSection(
+                child: Column(
+                  children: [
                     for (final mold in moldSuggestions)
                       _SuggestionRow(
                         key: Key('mold-filter-suggestion-${mold.name}'),
@@ -223,17 +186,12 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                         },
                       ),
                   ],
-                  const SizedBox(height: 12),
-                  TextField(
-                    key: const Key('color-filter-input'),
-                    controller: _colorFilterController,
-                    decoration: const InputDecoration(
-                      labelText: 'Color filter',
-                      hintText: 'Filter by color',
-                    ),
-                  ),
-                  if (colorSuggestions.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                ),
+              ),
+            if (colorSuggestions.isNotEmpty)
+              AppSection(
+                child: Column(
+                  children: [
                     for (final color in colorSuggestions)
                       _SuggestionRow(
                         key: Key('color-filter-suggestion-${color.name}'),
@@ -243,14 +201,12 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                         },
                       ),
                   ],
-                ],
+                ),
               ),
-            ),
-            _FlatSection(
-              title: 'Results',
+            AppSection(
               child: pieces.isEmpty
                   ? Text(
-                      'No pieces match the current filters.',
+                      'No pieces match.',
                       style: Theme.of(context).textTheme.bodyLarge,
                     )
                   : Column(
@@ -258,7 +214,6 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                         for (final piece in pieces)
                           _PieceRow(
                             piece: piece,
-                            onOpen: () => _openPiece(piece),
                             onEdit: () => _editPiece(piece),
                             onDelete: () => _deletePiece(piece),
                           ),
@@ -272,7 +227,7 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
   }
 
   bool _matchesFilters(Piece piece) {
-    final searchQuery = _searchController.text.trim().toLowerCase();
+    final searchQuery = widget.searchQuery.trim().toLowerCase();
     final moldQuery = _moldFilterController.text.trim().toLowerCase();
     final colorQuery = _colorFilterController.text.trim().toLowerCase();
 
@@ -319,103 +274,70 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
   }
 }
 
-class _FlatSection extends StatelessWidget {
-  const _FlatSection({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title.toUpperCase(), style: AppTypography.sectionLabel),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _NullableChoiceRow<T> extends StatelessWidget {
-  const _NullableChoiceRow({
-    required this.groupKey,
-    required this.value,
-    required this.allLabel,
-    required this.options,
-    required this.labelOf,
-    required this.onSelected,
-  });
-
-  final String groupKey;
-  final T? value;
-  final String allLabel;
-  final List<T> options;
-  final String Function(T value) labelOf;
-  final ValueChanged<T?> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _FilterChoiceChip(
-          key: Key('$groupKey-all'),
-          label: allLabel,
-          selected: value == null,
-          onTap: () => onSelected(null),
-          textStyle: theme.textTheme.bodyMedium,
-        ),
-        for (final option in options)
-          _FilterChoiceChip(
-            key: Key('$groupKey-${labelOf(option)}'),
-            label: labelOf(option),
-            selected: value == option,
-            onTap: () => onSelected(option),
-            textStyle: theme.textTheme.bodyMedium,
-          ),
-      ],
-    );
-  }
-}
-
-class _FilterChoiceChip extends StatelessWidget {
-  const _FilterChoiceChip({
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
     required this.label,
     required this.selected,
     required this.onTap,
-    required this.textStyle,
     super.key,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(2),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryAccent : AppColors.appBackground,
-          border: Border.all(color: AppColors.textPrimary),
-          borderRadius: BorderRadius.circular(2),
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(2),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primaryAccent : AppColors.appBackground,
+            border: Border.all(color: AppColors.textPrimary),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
         ),
-        child: Text(label, style: textStyle),
+      ),
+    );
+  }
+}
+
+class _FilterGap extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(width: 8);
+  }
+}
+
+class _FilterTextField extends StatelessWidget {
+  const _FilterTextField({
+    required this.controller,
+    required this.label,
+    super.key,
+  });
+
+  final TextEditingController controller;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 190,
+      height: 42,
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
+        ),
       ),
     );
   }
@@ -447,13 +369,11 @@ class _SuggestionRow extends StatelessWidget {
 class _PieceRow extends StatelessWidget {
   const _PieceRow({
     required this.piece,
-    required this.onOpen,
     required this.onEdit,
     required this.onDelete,
   });
 
   final Piece piece;
-  final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -464,62 +384,55 @@ class _PieceRow extends StatelessWidget {
     final linkLabel = piece.linkedRecord == null
         ? null
         : '${piece.destination.label}: ${piece.linkedRecord!.label}';
+    final dateLabel = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(piece.updatedAt);
 
-    return Container(
+    return InkWell(
       key: Key('piece-row-${piece.id}'),
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(piece.id, style: theme.textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(
-            '${piece.mold.name} · $colorsLabel',
-            style: theme.textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${piece.stage.label} · ${piece.destination.label} · ${formatPrice(piece.price)}',
-            style: theme.textTheme.bodyMedium,
-          ),
-          if (linkLabel != null) ...[
-            const SizedBox(height: 4),
-            Text(linkLabel, style: theme.textTheme.bodyMedium),
-          ],
-          if (piece.failureRecord != null) ...[
+      onTap: onEdit,
+      borderRadius: BorderRadius.circular(2),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(piece.mold.name, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text(colorsLabel, style: theme.textTheme.bodyLarge),
             const SizedBox(height: 4),
             Text(
-              'Failed: ${piece.failureRecord!.reason}',
+              '${piece.stage.label} - ${piece.destination.label} - ${formatPrice(piece.price)}',
               style: theme.textTheme.bodyMedium,
             ),
-          ],
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              TextButton(
-                key: Key('open-piece-${piece.id}'),
-                onPressed: onOpen,
-                child: const Text('Open'),
-              ),
-              TextButton(
-                key: Key('edit-piece-${piece.id}'),
-                onPressed: onEdit,
-                child: const Text('Edit'),
-              ),
-              TextButton(
-                key: Key('delete-piece-${piece.id}'),
-                onPressed: onDelete,
-                child: const Text('Delete'),
-              ),
+            if (linkLabel != null) ...[
+              const SizedBox(height: 4),
+              Text(linkLabel, style: theme.textTheme.bodyMedium),
             ],
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(dateLabel, style: AppTypography.dateText),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton(
+                  key: Key('edit-piece-${piece.id}'),
+                  onPressed: onEdit,
+                  child: const Text('Edit'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  key: Key('delete-piece-${piece.id}'),
+                  onPressed: onDelete,
+                  child: const Text('Delete'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

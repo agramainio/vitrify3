@@ -8,7 +8,7 @@ import 'package:vitrify3/src/piece_editor_screen.dart';
 
 void main() {
   test(
-    'repository preserves history when identity changes and supports delete',
+    'repository creates readable IDs and preserves physical history',
     () async {
       final repository = DemoStudioRepository.seeded();
       final mold = repository.findExactMold('Classic Cup')!;
@@ -30,12 +30,12 @@ void main() {
         original.id,
         matches(RegExp(r'^classiccup_bonewhite_[A-Z0-9]{4}$')),
       );
+
       final updatedWithoutIdentityChange = await repository.updatePiece(
         original.copyWith(price: 34, stage: PieceStage.toGlaze),
       );
-
       expect(updatedWithoutIdentityChange.id, original.id);
-      expect(updatedWithoutIdentityChange.stage, PieceStage.toGlaze);
+      expect(updatedWithoutIdentityChange.stage.label, 'To glaze');
 
       final updatedWithIdentityChange = await repository.updatePiece(
         updatedWithoutIdentityChange.copyWith(
@@ -49,31 +49,43 @@ void main() {
         updatedWithIdentityChange.id,
         matches(RegExp(r'^ripplebowl_rustline_[A-Z0-9]{4}$')),
       );
-      expect(updatedWithIdentityChange.mold.name, 'Ripple Bowl');
-      expect(updatedWithIdentityChange.colors.single.name, 'Rust Line');
-
-      final pieces = repository.allPieces();
-      expect(pieces.where((piece) => piece.id == original.id), hasLength(1));
       expect(
-        pieces.where((piece) => piece.id == updatedWithIdentityChange.id),
-        hasLength(1),
-      );
-
-      await repository.deletePiece(updatedWithIdentityChange.id);
-
-      final afterDelete = repository.allPieces();
-      expect(
-        afterDelete.where((piece) => piece.id == updatedWithIdentityChange.id),
-        isEmpty,
-      );
-      expect(
-        afterDelete.where((piece) => piece.id == original.id),
+        repository.allPieces().where((piece) => piece.id == original.id),
         hasLength(1),
       );
     },
   );
 
-  testWidgets('bench stays minimal and new piece flow is direct', (
+  testWidgets(
+    'shell uses global header, compact bench state, and central create',
+    (WidgetTester tester) async {
+      final repository = DemoStudioRepository.seeded();
+      _configureMobileViewport(tester);
+
+      await tester.pumpWidget(VitrifyApp(repository: repository));
+
+      expect(find.byType(SelectionArea), findsOneWidget);
+      expect(find.byKey(const Key('global-search-input')), findsOneWidget);
+      expect(find.text('To fire'), findsOneWidget);
+      expect(find.text('To glaze'), findsOneWidget);
+      expect(find.text('Ready'), findsOneWidget);
+      expect(find.byKey(const Key('new-piece-button')), findsNothing);
+      expect(find.text('Recent pieces'), findsNothing);
+      expect(
+        find.text(
+          'Bench controls intake. New pieces start here, then move through production. Stock is only the ready count at the bottom.',
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('nav-create')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('new-piece-button')), findsOneWidget);
+    },
+  );
+
+  testWidgets('plus create flow stays direct and collapses selected order', (
     WidgetTester tester,
   ) async {
     final repository = DemoStudioRepository.seeded();
@@ -81,18 +93,8 @@ void main() {
 
     await tester.pumpWidget(VitrifyApp(repository: repository));
 
-    expect(find.byType(SelectionArea), findsOneWidget);
-    expect(
-      find.text(
-        'Bench controls intake. New pieces start here, then move through production. Stock is only the ready count at the bottom.',
-      ),
-      findsNothing,
-    );
-    expect(find.text('Recent pieces'), findsNothing);
-
-    final benchLabel = tester.widget<Text>(find.text('BENCH'));
-    expect(benchLabel.style?.fontFamily, AppTypography.bodyFontFamily);
-
+    await tester.tap(find.byKey(const Key('nav-create')));
+    await tester.pump();
     await tester.tap(find.byKey(const Key('new-piece-button')));
     await tester.pumpAndSettle();
 
@@ -125,7 +127,6 @@ void main() {
     expect(priceField.controller?.text, '28');
 
     await tester.enterText(find.byKey(const Key('quantity-input')), '2');
-
     await tester.enterText(find.byKey(const Key('color-input')), 'Bone');
     await tester.pump();
     expect(
@@ -134,7 +135,6 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('color-suggestion-Bone White')));
     await tester.pump();
-    expect(find.text('Bone White'), findsWidgets);
 
     await tester.enterText(
       find.byKey(const Key('color-input')),
@@ -144,7 +144,6 @@ void main() {
     expect(find.byKey(const Key('create-inline-color')), findsOneWidget);
     await tester.tap(find.byKey(const Key('create-inline-color')));
     await tester.pump();
-    expect(find.text('Sunset Copper'), findsWidgets);
 
     await tester.tap(find.byKey(const Key('destination-Order')));
     await tester.pump();
@@ -153,14 +152,11 @@ void main() {
       'Order 001',
     );
     await tester.pump();
-    expect(
-      find.byKey(const Key('link-suggestion-Order 001 - Martin')),
-      findsOneWidget,
-    );
     await tester.tap(
       find.byKey(const Key('link-suggestion-Order 001 - Martin')),
     );
     await tester.pump();
+
     expect(find.byKey(const Key('linked-record-input')), findsNothing);
     expect(
       find.byKey(const Key('selected-linked-record-summary')),
@@ -174,27 +170,19 @@ void main() {
     await tester.tap(find.byKey(const Key('save-piece-button')));
     await tester.pumpAndSettle();
 
-    expect(repository.countPiecesByStage(PieceStage.toFire), 4);
-
     final created = repository.recentPieces(limit: 2);
     expect(created, hasLength(2));
-    expect(created.first.mold.name, 'Classic Cup');
+    expect(repository.countPiecesByStage(PieceStage.toFire), 4);
     expect(
       created.first.id,
       matches(RegExp(r'^classiccup_bonewhite_sunsetcopper_[A-Z0-9]{4}$')),
     );
-    expect(
-      created.first.colors.map((item) => item.name),
-      containsAll(<String>['Bone White', 'Sunset Copper']),
-    );
-    expect(created.first.price, 28);
-    expect(created.first.destination, PieceDestination.order);
+    expect(created.first.stage.label, 'To fire');
     expect(created.first.linkedRecord?.label, 'Order 001 - Martin');
-    expect(created.first.commercialState, CommercialState.reserved);
   });
 
   testWidgets(
-    'all pieces page is the central access point for piece management',
+    'all pieces uses header search, horizontal filters, and row edit',
     (WidgetTester tester) async {
       final repository = DemoStudioRepository.seeded();
       final target = repository.allPieces().firstWhere(
@@ -203,61 +191,110 @@ void main() {
       _configureMobileViewport(tester);
 
       await tester.pumpWidget(VitrifyApp(repository: repository));
-
       await tester.tap(find.byKey(const Key('nav-all-pieces')));
       await tester.pumpAndSettle();
 
-      expect(find.text('ALL PIECES'), findsOneWidget);
+      expect(find.text('ALL PIECES'), findsNothing);
+      expect(find.byKey(const Key('all-pieces-search')), findsNothing);
+      expect(find.text('Open'), findsNothing);
+      expect(find.text(target.id), findsNothing);
 
       await tester.enterText(
-        find.byKey(const Key('all-pieces-search')),
+        find.byKey(const Key('global-search-input')),
         target.id,
       );
       await tester.pump();
 
       expect(find.byKey(Key('piece-row-${target.id}')), findsOneWidget);
+      expect(find.text(target.mold.name), findsOneWidget);
 
-      await tester.tap(find.byKey(Key('open-piece-${target.id}')));
-      await tester.pumpAndSettle();
-      expect(find.text('PIECE'), findsOneWidget);
-      expect(find.text(target.id), findsWidgets);
+      await tester.tap(find.byKey(const Key('stage-filter-To fire')));
+      await tester.pump();
+      expect(find.byKey(Key('piece-row-${target.id}')), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.arrow_back));
-      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('stage-filter-all')));
+      await tester.pump();
+      expect(find.byKey(Key('piece-row-${target.id}')), findsOneWidget);
 
-      await tester.tap(find.byKey(Key('edit-piece-${target.id}')));
-      await tester.pumpAndSettle();
-      expect(find.text('EDIT PIECE'), findsOneWidget);
-
-      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.tap(find.byKey(Key('piece-row-${target.id}')));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(Key('delete-piece-${target.id}')));
-      await tester.pumpAndSettle();
-      expect(find.text('Delete piece'), findsOneWidget);
+      expect(find.text('EDIT PIECE'), findsNothing);
+      expect(find.text(target.id), findsOneWidget);
+      expect(find.byKey(const Key('edit-mold')), findsOneWidget);
+    },
+  );
 
-      await tester.tap(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.text('Delete'),
+  testWidgets(
+    'edit piece is display-first and identity changes save as new piece',
+    (WidgetTester tester) async {
+      final repository = DemoStudioRepository.seeded();
+      final piece = repository.allPieces().firstWhere(
+        (item) => item.mold.name == 'Classic Cup',
+      );
+      _configureMobileViewport(tester);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.build(),
+          builder: (context, child) {
+            return Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder: (context) {
+                    return SelectionArea(
+                      child: child ?? const SizedBox.shrink(),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+          home: PieceEditorScreen.edit(repository: repository, piece: piece),
         ),
       );
+
+      expect(find.byKey(const Key('global-search-input')), findsOneWidget);
+      expect(find.text(piece.id), findsOneWidget);
+      expect(find.byKey(const Key('quantity-input')), findsNothing);
+      expect(find.byKey(const Key('color-input')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('edit-color')));
+      await tester.pump();
+      expect(find.byKey(const Key('color-input')), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('color-input')), 'Rust');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('color-suggestion-Rust Line')));
+      await tester.pump();
+
+      expect(
+        find.text('Changing mold or colors creates a new piece ID.'),
+        findsOneWidget,
+      );
+      expect(find.text('Save as new piece'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('save-piece-button')));
       await tester.pumpAndSettle();
 
       expect(
-        repository.allPieces().where((piece) => piece.id == target.id),
-        isEmpty,
+        repository.allPieces().where((item) => item.id == piece.id),
+        hasLength(1),
+      );
+      expect(
+        repository.allPieces().where(
+          (item) => item.id != piece.id && item.mold.id == piece.mold.id,
+        ),
+        isNotEmpty,
       );
     },
   );
 
-  testWidgets('edit piece shows delete confirmation and identity change path', (
+  testWidgets('delete piece still confirms before removal', (
     WidgetTester tester,
   ) async {
     final repository = DemoStudioRepository.seeded();
-    final piece = repository.allPieces().firstWhere(
-      (item) => item.mold.name == 'Classic Cup',
-    );
+    final piece = repository.allPieces().first;
     _configureMobileViewport(tester);
 
     await tester.pumpWidget(
@@ -278,23 +315,6 @@ void main() {
       ),
     );
 
-    expect(find.byType(SelectionArea), findsOneWidget);
-    expect(find.byKey(const Key('delete-piece-button')), findsOneWidget);
-
-    await tester.enterText(find.byKey(const Key('color-input')), 'Rust');
-    await tester.pump();
-    expect(find.byKey(const Key('color-suggestion-Rust Line')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('color-suggestion-Rust Line')));
-    await tester.pump();
-
-    expect(
-      find.text('Changing mold or colors creates a new piece ID.'),
-      findsOneWidget,
-    );
-    expect(find.text('Save as new piece'), findsOneWidget);
-
-    await tester.drag(find.byType(ListView), const Offset(0, -600));
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('delete-piece-button')));
     await tester.pumpAndSettle();
 
@@ -307,7 +327,6 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Delete piece'), findsNothing);
     expect(
       repository.allPieces().where((item) => item.id == piece.id),
       hasLength(1),

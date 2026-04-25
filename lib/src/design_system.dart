@@ -6,14 +6,30 @@ class AppColors {
   static const textPrimary = Color(0xFF403F4C);
   static const shellBackground = Color(0xFFB9CBCA);
   static const primaryAccent = Color(0xFF6CABCC);
-  static const appBackground = Color(0xFFFFFBEB);
+  static const appBackground = Color(0xFFFAFAFA);
   static const iconColor = Color(0xFFD66F00);
+}
+
+class AppRadii {
+  const AppRadii._();
+
+  static const double input = 4;
+  static const double button = 4;
+  static const double card = 6;
+  static const double modal = 8;
+}
+
+class AppSpacing {
+  const AppSpacing._();
+
+  static const double gutter = 16;
+  static const double related = 8;
 }
 
 class AppTypography {
   const AppTypography._();
 
-  static const bodyFontFamily = 'B612';
+  static const bodyFontFamily = 'Inter';
   static const dateFontFamily = 'OCRB';
 
   static TextTheme textTheme() {
@@ -80,7 +96,7 @@ class AppTypography {
   );
 
   static const dateText = TextStyle(
-    fontFamily: bodyFontFamily,
+    fontFamily: dateFontFamily,
     fontSize: 12,
     letterSpacing: 1.2,
     height: 1.2,
@@ -93,6 +109,14 @@ class AppTypography {
     letterSpacing: 1.0,
     height: 1.2,
     color: AppColors.textPrimary,
+  );
+
+  static const homeNumberText = TextStyle(
+    fontFamily: dateFontFamily,
+    fontSize: 18,
+    letterSpacing: 1.0,
+    height: 1.0,
+    color: AppColors.primaryAccent,
   );
 }
 
@@ -122,15 +146,15 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.shellBackground,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(AppRadii.input),
           borderSide: const BorderSide(color: AppColors.textPrimary),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(AppRadii.input),
           borderSide: const BorderSide(color: AppColors.textPrimary),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(AppRadii.input),
           borderSide: const BorderSide(
             color: AppColors.primaryAccent,
             width: 1.6,
@@ -148,7 +172,9 @@ class AppTheme {
           backgroundColor: AppColors.primaryAccent,
           foregroundColor: AppColors.textPrimary,
           textStyle: baseTextTheme.labelLarge,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.button),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         ),
       ),
@@ -156,7 +182,9 @@ class AppTheme {
         style: TextButton.styleFrom(
           foregroundColor: AppColors.textPrimary,
           textStyle: baseTextTheme.labelLarge,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.button),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
       ),
@@ -167,7 +195,9 @@ class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.appBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.modal),
+        ),
         titleTextStyle: baseTextTheme.titleLarge,
         contentTextStyle: baseTextTheme.bodyMedium,
       ),
@@ -182,6 +212,8 @@ class AppHeader extends StatelessWidget {
     required this.searchController,
     this.onSearchChanged,
     this.onBack,
+    this.onMoreTap,
+    this.onUserTap,
     super.key,
   });
 
@@ -190,6 +222,8 @@ class AppHeader extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onBack;
+  final VoidCallback? onMoreTap;
+  final VoidCallback? onUserTap;
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +255,7 @@ class AppHeader extends StatelessWidget {
               screenName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.topBarText,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
           const SizedBox(width: 8),
@@ -246,6 +280,38 @@ class AppHeader extends StatelessWidget {
               ),
             ),
           ),
+          if (onMoreTap != null) ...[
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                key: const Key('header-more-button'),
+                padding: EdgeInsets.zero,
+                icon: const Icon(
+                  Icons.more_horiz,
+                  color: AppColors.iconColor,
+                  size: 22,
+                ),
+                onPressed: onMoreTap,
+              ),
+            ),
+          ],
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: IconButton(
+              key: const Key('header-user-button'),
+              padding: EdgeInsets.zero,
+              icon: const Icon(
+                Icons.person_outline,
+                color: AppColors.iconColor,
+                size: 21,
+              ),
+              onPressed: onUserTap,
+            ),
+          ),
         ],
       ),
     );
@@ -261,7 +327,12 @@ class AppSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.gutter,
+        AppSpacing.gutter,
+        AppSpacing.gutter,
+        AppSpacing.gutter,
+      ),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
       ),
@@ -274,6 +345,60 @@ class AppSection extends StatelessWidget {
           ],
           child,
         ],
+      ),
+    );
+  }
+}
+
+class AppCard extends StatelessWidget {
+  const AppCard({
+    required this.child,
+    this.onTap,
+    this.onLongPress,
+    this.padding = const EdgeInsets.all(AppSpacing.gutter),
+    this.margin = const EdgeInsets.only(bottom: AppSpacing.related),
+    this.semanticLabel,
+    super.key,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: AppColors.appBackground.withValues(alpha: 0.82),
+        border: Border.all(color: AppColors.shellBackground),
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(padding: padding, child: child),
+    );
+
+    if (onTap == null && onLongPress == null) {
+      return card;
+    }
+
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        child: card,
       ),
     );
   }

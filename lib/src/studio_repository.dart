@@ -9,12 +9,20 @@ abstract class StudioRepository extends Listenable {
 
   int matchingMoldCount(String query);
 
+  List<Mold> allMolds({bool includeInactive = false});
+
   Future<Mold> createMold({
     required String name,
-    String? size,
+    String? description,
+    MoldSize? size,
+    MoldImageReference? imageReference,
     int targetReadyStock = 0,
     double defaultPrice = 0,
   });
+
+  Future<Mold> updateMold(Mold mold);
+
+  Future<void> deleteMold(String moldId);
 
   List<StudioColor> suggestColors(String query, {int limit = 8});
 
@@ -48,11 +56,16 @@ abstract class StudioRepository extends Listenable {
     required PieceDestination destination,
     required CommercialState commercialState,
     LinkedRecord? linkedRecord,
+    StudioUser? createdBy,
   });
 
   Future<Piece> updatePiece(Piece piece);
 
+  Future<List<Piece>> updatePieces(List<Piece> pieces);
+
   Future<void> deletePiece(String pieceId);
+
+  Future<void> deletePieces(List<String> pieceIds);
 
   List<Piece> allPieces();
 

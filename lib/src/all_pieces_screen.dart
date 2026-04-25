@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'design_system.dart';
 import 'models.dart';
 import 'piece_detail_screen.dart';
+import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
 
 class AllPiecesScreen extends StatefulWidget {
@@ -11,6 +12,7 @@ class AllPiecesScreen extends StatefulWidget {
     required this.searchQuery,
     required this.stageFilter,
     required this.destinationFilter,
+    required this.currentUser,
     required this.onFiltersChanged,
     required this.onClearFilters,
     super.key,
@@ -20,6 +22,7 @@ class AllPiecesScreen extends StatefulWidget {
   final String searchQuery;
   final PieceStage? stageFilter;
   final PieceDestination? destinationFilter;
+  final StudioUser currentUser;
   final void Function({PieceStage? stage, PieceDestination? destination})
   onFiltersChanged;
   final VoidCallback onClearFilters;
@@ -29,14 +32,87 @@ class AllPiecesScreen extends StatefulWidget {
 }
 
 class _AllPiecesScreenState extends State<AllPiecesScreen> {
+  final Set<String> _expandedGroupKeys = <String>{};
+  bool _failedOnly = false;
+
   Future<void> _openPiece(Piece piece) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) {
-          return PieceDetailScreen(repository: widget.repository, piece: piece);
+          return PieceDetailScreen(
+            repository: widget.repository,
+            piece: piece,
+            currentUser: widget.currentUser,
+          );
         },
       ),
     );
+  }
+
+  void _toggleGroup(_PieceGroup group) {
+    setState(() {
+      if (_expandedGroupKeys.contains(group.key)) {
+        _expandedGroupKeys.remove(group.key);
+      } else {
+        _expandedGroupKeys.add(group.key);
+      }
+    });
+  }
+
+  Future<void> _editPiece(Piece piece) async {
+    await Navigator.of(context).push<PieceEditResult>(
+      MaterialPageRoute(
+        builder: (context) => PieceEditorScreen.edit(
+          repository: widget.repository,
+          piece: piece,
+          currentUser: widget.currentUser,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editGroup(_PieceGroup group) async {
+    await Navigator.of(context).push<PieceEditResult>(
+      MaterialPageRoute(
+        builder: (context) => PieceEditorScreen.edit(
+          repository: widget.repository,
+          piece: group.pieces.first,
+          currentUser: widget.currentUser,
+          batchPieces: group.pieces,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deletePieces(List<Piece> pieces) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(pieces.length == 1 ? 'Delete piece' : 'Delete pieces'),
+          content: Text(
+            'Delete ${pieces.length} piece(s)? This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const Key('confirm-delete-pieces-button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await widget.repository.deletePieces(
+        pieces.map((piece) => piece.id).toList(growable: false),
+      );
+    }
   }
 
   @override
@@ -48,6 +124,7 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
             .allPieces()
             .where(_matchesFilters)
             .toList();
+        final groups = _buildPieceGroups(pieces);
 
         return ListView(
           padding: EdgeInsets.zero,
@@ -61,9 +138,7 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                       key: const Key('filter-all'),
                       label: 'All',
                       selected: _noChipFilters,
-                      onTap: () {
-                        widget.onClearFilters();
-                      },
+                      onTap: widget.onClearFilters,
                     ),
                     _FilterChip(
                       key: const Key('stage-filter-To fire'),
@@ -122,23 +197,37 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                         );
                       },
                     ),
+                    _FilterChip(
+                      key: const Key('failed-only-filter'),
+                      label: 'Failed',
+                      selected: _failedOnly,
+                      onTap: () => setState(() => _failedOnly = !_failedOnly),
+                    ),
                   ],
                 ),
               ),
             ),
             AppSection(
-              child: pieces.isEmpty
+              child: groups.isEmpty
                   ? Text(
                       'No pieces found',
                       style: Theme.of(context).textTheme.bodyLarge,
                     )
                   : Column(
                       children: [
-                        for (final piece in pieces)
-                          _PieceRow(
-                            piece: piece,
-                            onTap: () => _openPiece(piece),
-                            onLongPress: () {},
+                        for (final group in groups)
+                          _PieceGroupCard(
+                            group: group,
+                            expanded: _expandedGroupKeys.contains(group.key),
+                            onTap: group.isGrouped
+                                ? () => _toggleGroup(group)
+                                : () => _openPiece(group.pieces.single),
+                            onPieceTap: _openPiece,
+                            onPieceEdit: _editPiece,
+                            onPieceDelete: (piece) => _deletePieces([piece]),
+                            onEditAll: () => _editGroup(group),
+                            onDeleteAll: () => _deletePieces(group.pieces),
+                            currentUser: widget.currentUser,
                           ),
                       ],
                     ),
@@ -165,6 +254,10 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
       return false;
     }
 
+    if (_failedOnly && !piece.failed) {
+      return false;
+    }
+
     if (searchQuery.isEmpty) {
       return true;
     }
@@ -174,10 +267,12 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
       piece.mold.name,
       piece.stage.label,
       piece.destination.label,
-      _ownerLabel(piece),
+      piece.commercialState.label,
+      _ownerLabel(piece, widget.currentUser),
       if (piece.linkedRecord != null) piece.linkedRecord!.label,
       if (piece.failureRecord != null) piece.failureRecord!.reason,
       ...piece.colors.map((color) => color.name),
+      if (piece.colors.isEmpty) 'No color',
     ].join(' ').toLowerCase();
 
     return searchText.contains(searchQuery);
@@ -201,15 +296,15 @@ class _FilterChip extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: AppSpacing.related),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(2),
+        borderRadius: BorderRadius.circular(AppRadii.button),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: selected ? AppColors.primaryAccent : null,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(AppRadii.button),
           ),
           child: Text(
             label,
@@ -223,20 +318,159 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _PieceRow extends StatelessWidget {
-  const _PieceRow({
+class _PieceGroupCard extends StatelessWidget {
+  const _PieceGroupCard({
+    required this.group,
+    required this.expanded,
+    required this.onTap,
+    required this.onPieceTap,
+    required this.onPieceEdit,
+    required this.onPieceDelete,
+    required this.onEditAll,
+    required this.onDeleteAll,
+    required this.currentUser,
+  });
+
+  final _PieceGroup group;
+  final bool expanded;
+  final VoidCallback onTap;
+  final ValueChanged<Piece> onPieceTap;
+  final ValueChanged<Piece> onPieceEdit;
+  final ValueChanged<Piece> onPieceDelete;
+  final VoidCallback onEditAll;
+  final VoidCallback onDeleteAll;
+  final StudioUser currentUser;
+
+  @override
+  Widget build(BuildContext context) {
+    final representative = group.pieces.first;
+    final theme = Theme.of(context);
+    final dateLabel = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(group.updatedAt);
+
+    return AppCard(
+      key: group.isGrouped
+          ? Key('piece-group-${group.key}')
+          : Key('piece-row-${representative.id}'),
+      onTap: onTap,
+      semanticLabel: group.title,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(group.title, style: theme.textTheme.titleMedium),
+              ),
+              if (group.isGrouped)
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  color: AppColors.iconColor,
+                  size: 22,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.related),
+          Wrap(
+            spacing: AppSpacing.related,
+            runSpacing: 6,
+            children: [
+              _MetaPill(label: group.statusSummary, tone: _PillTone.status),
+              _MetaPill(
+                label: group.ownerSummary(currentUser),
+                tone: _PillTone.destination,
+              ),
+              _MetaPill(label: group.priceSummary),
+              if (group.failedCount > 0)
+                _MetaPill(
+                  label: 'Failed ×${group.failedCount}',
+                  tone: _PillTone.failed,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.related),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _colorsLabel(representative),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              Text(dateLabel, style: AppTypography.dateText),
+            ],
+          ),
+          if (!group.isGrouped) ...[
+            const SizedBox(height: AppSpacing.related),
+            Row(
+              children: [
+                TextButton(
+                  key: Key('edit-piece-${representative.id}'),
+                  onPressed: () => onPieceEdit(representative),
+                  child: const Text('Edit'),
+                ),
+                const SizedBox(width: AppSpacing.related),
+                TextButton(
+                  key: Key('delete-piece-${representative.id}'),
+                  onPressed: () => onPieceDelete(representative),
+                  child: const Text('Delete'),
+                ),
+              ],
+            ),
+          ],
+          if (group.isGrouped && expanded) ...[
+            const SizedBox(height: AppSpacing.related),
+            Row(
+              children: [
+                TextButton(
+                  key: Key('edit-all-${group.key}'),
+                  onPressed: onEditAll,
+                  child: const Text('Edit all'),
+                ),
+                const SizedBox(width: AppSpacing.related),
+                TextButton(
+                  key: Key('delete-all-${group.key}'),
+                  onPressed: onDeleteAll,
+                  child: const Text('Delete all'),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.related),
+            const Divider(height: 1, color: AppColors.shellBackground),
+            const SizedBox(height: AppSpacing.related),
+            for (final piece in group.pieces)
+              _ExpandedPieceRow(
+                piece: piece,
+                onTap: () => onPieceTap(piece),
+                onEdit: () => onPieceEdit(piece),
+                onDelete: () => onPieceDelete(piece),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpandedPieceRow extends StatelessWidget {
+  const _ExpandedPieceRow({
     required this.piece,
     required this.onTap,
-    required this.onLongPress,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final Piece piece;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final dateLabel = MaterialLocalizations.of(
       context,
     ).formatMediumDate(piece.updatedAt);
@@ -244,28 +478,39 @@ class _PieceRow extends StatelessWidget {
     return InkWell(
       key: Key('piece-row-${piece.id}'),
       onTap: onTap,
-      onLongPress: onLongPress,
-      borderRadius: BorderRadius.circular(2),
-      child: Container(
-        height: 54,
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
-        ),
+      borderRadius: BorderRadius.circular(AppRadii.button),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
           children: [
             Expanded(
-              flex: 4,
-              child: _RowText(
-                piece.mold.name,
-                style: theme.textTheme.bodyLarge,
+              child: Text(
+                piece.id,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
-            Expanded(flex: 4, child: _RowText(_ownerLabel(piece))),
-            Expanded(flex: 3, child: _RowText(piece.stage.label)),
-            Expanded(flex: 4, child: _RowText(_colorsLabel(piece))),
-            Expanded(
-              flex: 3,
-              child: _RowText(dateLabel, style: AppTypography.dateText),
+            const SizedBox(width: AppSpacing.related),
+            Text(dateLabel, style: AppTypography.dateText),
+            const SizedBox(width: AppSpacing.related),
+            IconButton(
+              key: Key('edit-piece-${piece.id}'),
+              onPressed: onEdit,
+              icon: const Icon(
+                Icons.edit,
+                color: AppColors.iconColor,
+                size: 16,
+              ),
+            ),
+            IconButton(
+              key: Key('delete-piece-${piece.id}'),
+              onPressed: onDelete,
+              icon: const Icon(
+                Icons.delete_outline,
+                color: AppColors.iconColor,
+                size: 16,
+              ),
             ),
           ],
         ),
@@ -274,34 +519,127 @@ class _PieceRow extends StatelessWidget {
   }
 }
 
-class _RowText extends StatelessWidget {
-  const _RowText(this.value, {this.style});
+enum _PillTone { neutral, status, destination, failed }
 
-  final String value;
-  final TextStyle? style;
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.label, this.tone = _PillTone.neutral});
+
+  final String label;
+  final _PillTone tone;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Text(
-        value,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: style ?? Theme.of(context).textTheme.bodyMedium,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: switch (tone) {
+          _PillTone.status => AppColors.primaryAccent.withValues(alpha: 0.22),
+          _PillTone.destination => AppColors.shellBackground.withValues(
+            alpha: 0.72,
+          ),
+          _PillTone.failed => AppColors.iconColor.withValues(alpha: 0.18),
+          _PillTone.neutral => AppColors.shellBackground.withValues(
+            alpha: 0.48,
+          ),
+        },
+        borderRadius: BorderRadius.circular(AppRadii.button),
       ),
+      child: Text(label, style: Theme.of(context).textTheme.labelMedium),
     );
   }
 }
 
-String _ownerLabel(Piece piece) {
+class _PieceGroup {
+  const _PieceGroup({required this.key, required this.pieces});
+
+  final String key;
+  final List<Piece> pieces;
+
+  bool get isGrouped => pieces.length > 1;
+
+  DateTime get updatedAt {
+    return pieces
+        .map((piece) => piece.updatedAt)
+        .reduce((left, right) => left.isAfter(right) ? left : right);
+  }
+
+  String get title {
+    final piece = pieces.first;
+    final base = '${piece.mold.name} — ${_colorsLabel(piece)}';
+    if (!isGrouped) {
+      return base;
+    }
+    return '$base (×${pieces.length})';
+  }
+
+  int get failedCount => pieces.where((piece) => piece.failed).length;
+
+  String get statusSummary {
+    final labels = pieces.map((piece) {
+      return piece.failed ? 'Failed' : piece.stage.label;
+    }).toSet();
+    if (labels.length == 1) {
+      return labels.single;
+    }
+    return '${labels.length} statuses';
+  }
+
+  String ownerSummary(StudioUser currentUser) {
+    final labels = pieces
+        .map((piece) => _ownerLabel(piece, currentUser))
+        .toSet();
+    if (labels.length == 1) {
+      return labels.single;
+    }
+    return '${labels.length} owners';
+  }
+
+  String get priceSummary {
+    final prices = pieces
+        .map((piece) => piece.price.toStringAsFixed(2))
+        .toSet();
+    if (prices.length == 1) {
+      return formatPriceEuro(pieces.first.price);
+    }
+    return 'Mixed prices';
+  }
+}
+
+List<_PieceGroup> _buildPieceGroups(List<Piece> pieces) {
+  final buckets = <String, List<Piece>>{};
+
+  for (final piece in pieces) {
+    final key = _groupKey(piece);
+    buckets.putIfAbsent(key, () => <Piece>[]).add(piece);
+  }
+
+  final groups = buckets.entries.map((entry) {
+    final sortedPieces = entry.value.toList()
+      ..sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
+    return _PieceGroup(key: entry.key, pieces: sortedPieces);
+  }).toList();
+
+  groups.sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
+  return groups;
+}
+
+String _groupKey(Piece piece) {
+  final colors = piece.colors.map((color) => color.id).join(',');
+  return '${piece.mold.id}|$colors';
+}
+
+String _ownerLabel(Piece piece, StudioUser? currentUser) {
   if (piece.linkedRecord != null) {
     return piece.linkedRecord!.label;
   }
 
   switch (piece.destination) {
     case PieceDestination.stock:
-      return 'Stock';
+      return piece.createdByUserName == null
+          ? currentUser == null
+                ? 'Stock'
+                : '${currentUser.name}\'s stock'
+          : '${piece.createdByUserName}\'s stock';
     case PieceDestination.order:
       return 'Client';
     case PieceDestination.workshop:
@@ -311,7 +649,7 @@ String _ownerLabel(Piece piece) {
 
 String _colorsLabel(Piece piece) {
   if (piece.colors.isEmpty) {
-    return '-';
+    return 'No color';
   }
   return piece.colors.map((color) => color.name).join(', ');
 }

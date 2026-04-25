@@ -1,6 +1,8 @@
+import 'dart:typed_data';
+
 enum PieceStage {
   toFire('to_fire', 'To fire'),
-  toGlaze('bisque_fired', 'Bisque fired'),
+  toGlaze('bisque_fired', 'To glaze'),
   ready('ready', 'Ready');
 
   const PieceStage(this.id, this.label);
@@ -31,6 +33,19 @@ enum CommercialState {
   final String label;
 }
 
+enum MoldSize {
+  micro('micro', 'micro'),
+  small('small', 'small'),
+  medium('medium', 'medium'),
+  large('large', 'large'),
+  extraLarge('extra_large', 'extra large');
+
+  const MoldSize(this.id, this.label);
+
+  final String id;
+  final String label;
+}
+
 class Mold {
   const Mold({
     required this.id,
@@ -38,7 +53,9 @@ class Mold {
     required this.normalizedName,
     required this.createdAt,
     required this.defaultPrice,
+    this.description,
     this.size,
+    this.imageReference,
     this.targetReadyStock = 0,
     this.active = true,
   });
@@ -48,7 +65,9 @@ class Mold {
   final String normalizedName;
   final DateTime createdAt;
   final double defaultPrice;
-  final String? size;
+  final String? description;
+  final MoldSize? size;
+  final MoldImageReference? imageReference;
   final int targetReadyStock;
   final bool active;
 
@@ -58,7 +77,9 @@ class Mold {
     String? normalizedName,
     DateTime? createdAt,
     double? defaultPrice,
-    String? size,
+    Object? description = _moldSentinel,
+    Object? size = _moldSentinel,
+    Object? imageReference = _moldSentinel,
     int? targetReadyStock,
     bool? active,
   }) {
@@ -68,11 +89,40 @@ class Mold {
       normalizedName: normalizedName ?? this.normalizedName,
       createdAt: createdAt ?? this.createdAt,
       defaultPrice: defaultPrice ?? this.defaultPrice,
-      size: size ?? this.size,
+      description: identical(description, _moldSentinel)
+          ? this.description
+          : description as String?,
+      size: identical(size, _moldSentinel) ? this.size : size as MoldSize?,
+      imageReference: identical(imageReference, _moldSentinel)
+          ? this.imageReference
+          : imageReference as MoldImageReference?,
       targetReadyStock: targetReadyStock ?? this.targetReadyStock,
       active: active ?? this.active,
     );
   }
+}
+
+const Object _moldSentinel = Object();
+
+class MoldImageReference {
+  const MoldImageReference({
+    required this.fileName,
+    required this.sizeBytes,
+    this.mimeType,
+    this.bytes,
+  });
+
+  final String fileName;
+  final String? mimeType;
+  final int sizeBytes;
+  final Uint8List? bytes;
+}
+
+class StudioUser {
+  const StudioUser({required this.id, required this.name});
+
+  final String id;
+  final String name;
 }
 
 class StudioColor {
@@ -142,6 +192,9 @@ class Piece {
     required this.commercialState,
     required this.createdAt,
     required this.updatedAt,
+    this.creationGroupId,
+    this.createdByUserId,
+    this.createdByUserName,
     this.linkedRecord,
     this.failureRecord,
   });
@@ -157,6 +210,9 @@ class Piece {
   final CommercialState commercialState;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? creationGroupId;
+  final String? createdByUserId;
+  final String? createdByUserName;
 
   bool get failed => failureRecord != null;
 
@@ -172,6 +228,9 @@ class Piece {
     CommercialState? commercialState,
     DateTime? createdAt,
     DateTime? updatedAt,
+    Object? creationGroupId = _pieceSentinel,
+    Object? createdByUserId = _pieceSentinel,
+    Object? createdByUserName = _pieceSentinel,
   }) {
     return Piece(
       id: id ?? this.id,
@@ -187,6 +246,15 @@ class Piece {
       commercialState: commercialState ?? this.commercialState,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      creationGroupId: identical(creationGroupId, _pieceSentinel)
+          ? this.creationGroupId
+          : creationGroupId as String?,
+      createdByUserId: identical(createdByUserId, _pieceSentinel)
+          ? this.createdByUserId
+          : createdByUserId as String?,
+      createdByUserName: identical(createdByUserName, _pieceSentinel)
+          ? this.createdByUserName
+          : createdByUserName as String?,
     );
   }
 }
@@ -240,4 +308,8 @@ String formatPrice(double value) {
   }
 
   return rounded;
+}
+
+String formatPriceEuro(double value) {
+  return '${formatPrice(value)} €';
 }

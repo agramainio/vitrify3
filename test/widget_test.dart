@@ -6,6 +6,8 @@ import 'package:vitrify3/src/demo_studio_repository.dart';
 import 'package:vitrify3/src/models.dart';
 import 'package:vitrify3/src/piece_editor_screen.dart';
 
+const _testUser = StudioUser(id: 'user-test', name: 'Nora');
+
 void main() {
   test(
     'repository creates readable IDs and preserves physical history',
@@ -36,7 +38,7 @@ void main() {
       );
       expect(updatedWithoutIdentityChange.id, original.id);
       expect(updatedWithoutIdentityChange.stage.id, 'bisque_fired');
-      expect(updatedWithoutIdentityChange.stage.label, 'Bisque fired');
+      expect(updatedWithoutIdentityChange.stage.label, 'To glaze');
 
       final updatedWithIdentityChange = await repository.updatePiece(
         updatedWithoutIdentityChange.copyWith(
@@ -54,8 +56,38 @@ void main() {
         repository.allPieces().where((piece) => piece.id == original.id),
         hasLength(1),
       );
+
+      final grouped = await repository.createPieces(
+        mold: mold,
+        quantity: 2,
+        colors: const <StudioColor>[],
+        price: 31.5,
+        destination: PieceDestination.stock,
+        commercialState: CommercialState.available,
+      );
+
+      expect(grouped, hasLength(2));
+      expect(grouped.first.creationGroupId, isNotNull);
+      expect(grouped.first.creationGroupId, grouped.last.creationGroupId);
+      expect(grouped.first.id, matches(RegExp(r'^classiccup_[A-Z0-9]{4}$')));
+      expect(grouped.first.colors, isEmpty);
+      expect(
+        () => repository.createMold(name: 'Classic Cup'),
+        throwsStateError,
+      );
     },
   );
+
+  testWidgets('design system uses Inter, new background, and card radius', (
+    WidgetTester tester,
+  ) async {
+    expect(AppColors.appBackground, const Color(0xFFFAFAFA));
+    expect(AppTypography.bodyFontFamily, 'Inter');
+    expect(AppTypography.dateFontFamily, 'OCRB');
+    expect(AppRadii.card, 6);
+    expect(AppRadii.input, 4);
+    expect(AppRadii.modal, 8);
+  });
 
   testWidgets(
     'shell uses global header, compact bench state, and central create',
@@ -63,7 +95,7 @@ void main() {
       final repository = DemoStudioRepository.seeded();
       _configureMobileViewport(tester);
 
-      await tester.pumpWidget(VitrifyApp(repository: repository));
+      await _pumpVitrifyApp(tester, repository);
 
       expect(find.byType(SelectionArea), findsOneWidget);
       expect(find.byKey(const Key('global-search-input')), findsOneWidget);
@@ -91,18 +123,75 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('New mold'), findsOneWidget);
+      expect(find.text('New mold name'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('mold-name-input')),
+        'Classic Cup',
+      );
+      await tester.pump();
+      expect(find.text('Mold name already exists'), findsOneWidget);
 
       await tester.enterText(
         find.byKey(const Key('mold-name-input')),
         'Tall Vase',
       );
+      await tester.enterText(
+        find.byKey(const Key('mold-description-input')),
+        'Tall thrown form',
+      );
+      await tester.tap(find.byKey(const Key('mold-size-dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('small').last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('pick-mold-image-button')), findsOneWidget);
       await tester.enterText(find.byKey(const Key('mold-price-input')), '55');
       await tester.tap(find.byKey(const Key('save-mold-button')));
       await tester.pumpAndSettle();
 
-      expect(repository.findExactMold('Tall Vase')?.defaultPrice, 55);
+      expect(find.text('Confirm mold'), findsOneWidget);
+      expect(repository.findExactMold('Tall Vase'), isNull);
+
+      await tester.tap(find.byKey(const Key('edit-mold-summary-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('mold-description-input')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('save-mold-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-mold-button')));
+      await tester.pumpAndSettle();
+
+      final mold = repository.findExactMold('Tall Vase');
+      expect(mold?.defaultPrice, 55);
+      expect(mold?.description, 'Tall thrown form');
+      expect(mold?.size, MoldSize.small);
+      expect(mold?.imageReference, isNull);
+      expect(mold?.id, matches(RegExp(r'^mold_[0-9]+_[A-Z0-9]{4}$')));
     },
   );
+
+  testWidgets('first use captures a local user before the bench', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    _configureMobileViewport(tester);
+
+    await tester.pumpWidget(
+      VitrifyApp(repository: repository, persistUser: false),
+    );
+    await tester.pump();
+
+    expect(find.text('What is your name?'), findsOneWidget);
+    expect(find.byKey(const Key('global-search-input')), findsNothing);
+
+    await tester.enterText(find.byKey(const Key('user-name-input')), 'Mira');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('save-user-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('global-search-input')), findsOneWidget);
+    expect(find.text('Bench'), findsWidgets);
+  });
 
   testWidgets('bench KPI opens all pieces with matching stage filter', (
     WidgetTester tester,
@@ -116,7 +205,7 @@ void main() {
     );
     _configureMobileViewport(tester);
 
-    await tester.pumpWidget(VitrifyApp(repository: repository));
+    await _pumpVitrifyApp(tester, repository);
     await tester.tap(find.text('To glaze'));
     await tester.pumpAndSettle();
 
@@ -131,7 +220,7 @@ void main() {
     final repository = DemoStudioRepository.seeded();
     _configureMobileViewport(tester);
 
-    await tester.pumpWidget(VitrifyApp(repository: repository));
+    await _pumpVitrifyApp(tester, repository);
 
     await tester.tap(find.byKey(const Key('nav-create')));
     await tester.pump();
@@ -160,6 +249,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('mold-suggestion-Classic Cup')));
     await tester.pump();
+    expect(find.byKey(const Key('mold-suggestion-Classic Cup')), findsNothing);
 
     final priceField = tester.widget<TextField>(
       find.byKey(const Key('price-input')),
@@ -175,6 +265,7 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('color-suggestion-Bone White')));
     await tester.pump();
+    expect(find.byKey(const Key('color-suggestion-Bone White')), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('color-input')),
@@ -221,6 +312,154 @@ void main() {
     expect(created.first.linkedRecord?.label, 'Order 001 - Martin');
   });
 
+  testWidgets('order destination can be created without a linked order', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    _configureMobileViewport(tester);
+
+    await _pumpVitrifyApp(tester, repository);
+
+    await tester.tap(find.byKey(const Key('nav-create')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('new-piece-button')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('mold-input')), 'Classic Cup');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('mold-suggestion-Classic Cup')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('destination-Order')));
+    await tester.pump();
+
+    tester.testTextInput.hide();
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('save-piece-button')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('save-piece-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No order selected'), findsOneWidget);
+    expect(find.text('This piece is not linked to any order.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('confirm-orderless-piece-button')));
+    await tester.pumpAndSettle();
+
+    final created = repository.recentPieces(limit: 1).single;
+    expect(created.destination, PieceDestination.order);
+    expect(created.linkedRecord, isNull);
+    expect(created.createdByUserId, _testUser.id);
+  });
+
+  testWidgets('new piece can be created with no color', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    _configureMobileViewport(tester);
+
+    await _pumpVitrifyApp(tester, repository);
+
+    await tester.tap(find.byKey(const Key('nav-create')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('new-piece-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('no-color-option')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('mold-input')), 'Classic Cup');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('mold-suggestion-Classic Cup')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('no-color-option')));
+    await tester.pump();
+
+    tester.testTextInput.hide();
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('save-piece-button')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('save-piece-button')));
+    await tester.pumpAndSettle();
+
+    final created = repository.recentPieces(limit: 1).single;
+    expect(created.colors, isEmpty);
+    expect(created.id, matches(RegExp(r'^classiccup_[A-Z0-9]{4}$')));
+
+    await tester.tap(find.byKey(const Key('nav-all-pieces')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('global-search-input')),
+      created.id,
+    );
+    await tester.pump();
+
+    expect(find.textContaining('No color'), findsWidgets);
+  });
+
+  testWidgets('user page shows user history including failed pieces', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    final mold = repository.findExactMold('Classic Cup')!;
+    final created = await repository.createPieces(
+      mold: mold,
+      quantity: 1,
+      colors: const <StudioColor>[],
+      price: 28,
+      destination: PieceDestination.stock,
+      commercialState: CommercialState.available,
+      createdBy: _testUser,
+    );
+    final failed = await repository.updatePiece(
+      created.single.copyWith(
+        failureRecord: FailureRecord(
+          reason: 'Cracked',
+          recordedAt: DateTime.now(),
+        ),
+      ),
+    );
+    _configureMobileViewport(tester);
+
+    await _pumpVitrifyApp(tester, repository);
+    await tester.tap(find.byKey(const Key('header-user-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text(_testUser.name), findsOneWidget);
+    expect(find.byKey(Key('user-history-${failed.id}')), findsOneWidget);
+    expect(find.text('To fire - Stock - Failed'), findsOneWidget);
+  });
+
+  testWidgets(
+    'all pieces groups same-batch matching pieces and expands inline',
+    (WidgetTester tester) async {
+      final repository = DemoStudioRepository.seeded();
+      final mold = repository.findExactMold('Classic Cup')!;
+      final color = repository.findExactColor('Bone White')!;
+      final grouped = await repository.createPieces(
+        mold: mold,
+        quantity: 3,
+        colors: <StudioColor>[color],
+        price: 31.5,
+        destination: PieceDestination.stock,
+        commercialState: CommercialState.available,
+      );
+      _configureMobileViewport(tester);
+
+      await _pumpVitrifyApp(tester, repository);
+      await tester.tap(find.byKey(const Key('nav-all-pieces')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Classic Cup — Bone White (×3)'), findsOneWidget);
+      expect(find.byKey(Key('piece-row-${grouped.first.id}')), findsNothing);
+
+      await tester.tap(find.text('Classic Cup — Bone White (×3)'));
+      await tester.pumpAndSettle();
+
+      for (final piece in grouped) {
+        expect(find.byKey(Key('piece-row-${piece.id}')), findsOneWidget);
+      }
+    },
+  );
+
   testWidgets(
     'all pieces uses header search, horizontal filters, and flat detail rows',
     (WidgetTester tester) async {
@@ -230,7 +469,7 @@ void main() {
       );
       _configureMobileViewport(tester);
 
-      await tester.pumpWidget(VitrifyApp(repository: repository));
+      await _pumpVitrifyApp(tester, repository);
       await tester.tap(find.byKey(const Key('nav-all-pieces')));
       await tester.pumpAndSettle();
 
@@ -238,7 +477,7 @@ void main() {
       expect(find.byKey(const Key('all-pieces-search')), findsNothing);
       expect(find.byKey(const Key('mold-filter-input')), findsNothing);
       expect(find.byKey(const Key('color-filter-input')), findsNothing);
-      expect(find.byKey(const Key('failed-only-filter')), findsNothing);
+      expect(find.byKey(const Key('failed-only-filter')), findsOneWidget);
       expect(find.text('Open'), findsNothing);
       expect(find.text(target.id), findsNothing);
       expect(find.byKey(const Key('filter-all')), findsOneWidget);
@@ -262,7 +501,7 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(Key('piece-row-${target.id}')), findsOneWidget);
-      expect(find.text(target.mold.name), findsOneWidget);
+      expect(find.textContaining(target.mold.name), findsWidgets);
 
       await tester.tap(find.byKey(const Key('stage-filter-To fire')));
       await tester.pump();
@@ -289,6 +528,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('EDIT PIECE'), findsNothing);
+      expect(find.byKey(const Key('piece-see-more-button')), findsOneWidget);
+      expect(find.text(target.id), findsNothing);
+
+      await tester.tap(find.byKey(const Key('piece-see-more-button')));
+      await tester.pumpAndSettle();
+
       expect(find.text('Piece ID'), findsOneWidget);
       expect(find.text(target.id), findsOneWidget);
       expect(find.byKey(Key('piece-detail-edit-${target.id}')), findsOneWidget);
@@ -343,10 +588,6 @@ void main() {
       await tester.tap(find.byKey(const Key('color-suggestion-Rust Line')));
       await tester.pump();
 
-      expect(
-        find.text('Changing mold or colors creates a new piece ID.'),
-        findsOneWidget,
-      );
       expect(find.text('Save as new piece'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('save-piece-button')));
@@ -407,6 +648,20 @@ void main() {
       hasLength(1),
     );
   });
+}
+
+Future<void> _pumpVitrifyApp(
+  WidgetTester tester,
+  DemoStudioRepository repository,
+) async {
+  await tester.pumpWidget(
+    VitrifyApp(
+      repository: repository,
+      initialUser: _testUser,
+      persistUser: false,
+    ),
+  );
+  await tester.pump();
 }
 
 void _configureMobileViewport(WidgetTester tester) {

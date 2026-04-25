@@ -2,15 +2,23 @@ import 'package:flutter/material.dart';
 
 import 'all_pieces_screen.dart';
 import 'design_system.dart';
+import 'molds_screen.dart';
 import 'mold_editor_screen.dart';
 import 'models.dart';
+import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
+import 'user_history_screen.dart';
 
 class BenchScreen extends StatefulWidget {
-  const BenchScreen({required this.repository, super.key});
+  const BenchScreen({
+    required this.repository,
+    required this.currentUser,
+    super.key,
+  });
 
   final StudioRepository repository;
+  final StudioUser currentUser;
 
   @override
   State<BenchScreen> createState() => _BenchScreenState();
@@ -19,6 +27,7 @@ class BenchScreen extends StatefulWidget {
 class _BenchScreenState extends State<BenchScreen> {
   int _selectedSection = 0;
   bool _showCreateActions = false;
+  bool _showMoreActions = false;
   PieceStage? _piecesStageFilter;
   PieceDestination? _piecesDestinationFilter;
   late final TextEditingController _globalSearchController;
@@ -36,22 +45,69 @@ class _BenchScreenState extends State<BenchScreen> {
   }
 
   Future<void> _openNewPiece() async {
-    setState(() => _showCreateActions = false);
+    setState(() {
+      _showCreateActions = false;
+      _showMoreActions = false;
+      _globalSearchController.clear();
+    });
 
     await Navigator.of(context).push<List<Piece>>(
       MaterialPageRoute(
-        builder: (context) =>
-            PieceEditorScreen.create(repository: widget.repository),
+        builder: (context) => PieceEditorScreen.create(
+          repository: widget.repository,
+          currentUser: widget.currentUser,
+        ),
       ),
     );
   }
 
   Future<void> _openNewMold() async {
-    setState(() => _showCreateActions = false);
+    setState(() {
+      _showCreateActions = false;
+      _showMoreActions = false;
+      _globalSearchController.clear();
+    });
 
     await Navigator.of(context).push<Mold>(
       MaterialPageRoute(
-        builder: (context) => MoldEditorScreen(repository: widget.repository),
+        builder: (context) => MoldEditorScreen(
+          repository: widget.repository,
+          currentUser: widget.currentUser,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openUserHistory() async {
+    setState(() {
+      _showCreateActions = false;
+      _showMoreActions = false;
+      _globalSearchController.clear();
+    });
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => UserHistoryScreen(
+          repository: widget.repository,
+          currentUser: widget.currentUser,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSearchPiece(Piece piece) async {
+    setState(() {
+      _showCreateActions = false;
+      _showMoreActions = false;
+    });
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => PieceDetailScreen(
+          repository: widget.repository,
+          piece: piece,
+          currentUser: widget.currentUser,
+        ),
       ),
     );
   }
@@ -60,6 +116,8 @@ class _BenchScreenState extends State<BenchScreen> {
     setState(() {
       _selectedSection = 1;
       _showCreateActions = false;
+      _showMoreActions = false;
+      _globalSearchController.clear();
       _piecesStageFilter = stage;
       _piecesDestinationFilter = null;
     });
@@ -104,7 +162,15 @@ class _BenchScreenState extends State<BenchScreen> {
                   dateLabel: dateLabel,
                   searchController: _globalSearchController,
                   onSearchChanged: (_) => setState(() {}),
+                  onMoreTap: () {
+                    setState(() {
+                      _showMoreActions = !_showMoreActions;
+                      _showCreateActions = false;
+                    });
+                  },
+                  onUserTap: _openUserHistory,
                 ),
+                _buildSearchSuggestions(),
                 Expanded(
                   child: Stack(
                     children: [
@@ -121,6 +187,11 @@ class _BenchScreenState extends State<BenchScreen> {
                                   onNewPiece: _openNewPiece,
                                   onNewMold: _openNewMold,
                                 )
+                              : _showMoreActions
+                              ? _MoreActionMenu(
+                                  key: const Key('more-action-menu'),
+                                  onMolds: _openMoldsPage,
+                                )
                               : const SizedBox.shrink(),
                         ),
                       ),
@@ -134,9 +205,12 @@ class _BenchScreenState extends State<BenchScreen> {
                     setState(() {
                       if (index == 2) {
                         _showCreateActions = !_showCreateActions;
+                        _showMoreActions = false;
                       } else {
                         _selectedSection = index;
                         _showCreateActions = false;
+                        _showMoreActions = false;
+                        _globalSearchController.clear();
                       }
                     });
                   },
@@ -185,12 +259,123 @@ class _BenchScreenState extends State<BenchScreen> {
         searchQuery: _globalSearchController.text,
         stageFilter: _piecesStageFilter,
         destinationFilter: _piecesDestinationFilter,
+        currentUser: widget.currentUser,
         onFiltersChanged: _handlePiecesFiltersChanged,
         onClearFilters: _clearPiecesFilters,
       );
     }
 
     return _PlaceholderSection(index: _selectedSection);
+  }
+
+  Widget _buildSearchSuggestions() {
+    final query = _globalSearchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final matches = widget.repository
+        .allPieces()
+        .where((piece) {
+          final searchText = <String>[
+            piece.id,
+            piece.mold.name,
+            piece.stage.label,
+            piece.destination.label,
+            piece.createdByUserName ?? '',
+            piece.linkedRecord?.label ?? '',
+            ...piece.colors.map((color) => color.name),
+            if (piece.failed) 'Failed',
+          ].join(' ').toLowerCase();
+          return searchText.contains(query);
+        })
+        .take(6)
+        .toList();
+
+    return AppSection(
+      child: matches.isEmpty
+          ? Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'No results',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                TextButton(
+                  key: const Key('search-create-piece-button'),
+                  onPressed: _openNewPiece,
+                  child: const Text('Create new piece'),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                for (final piece in matches)
+                  _SearchSuggestionRow(
+                    piece: piece,
+                    onTap: () => _openSearchPiece(piece),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Future<void> _openMoldsPage() async {
+    setState(() {
+      _showCreateActions = false;
+      _showMoreActions = false;
+      _globalSearchController.clear();
+    });
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => MoldsScreen(
+          repository: widget.repository,
+          currentUser: widget.currentUser,
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchSuggestionRow extends StatelessWidget {
+  const _SearchSuggestionRow({required this.piece, required this.onTap});
+
+  final Piece piece;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = piece.colors.isEmpty
+        ? 'No color'
+        : piece.colors.map((color) => color.name).join(', ');
+
+    return InkWell(
+      key: Key('search-result-${piece.id}'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.button),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${piece.mold.name} - $colors',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.related),
+            Text(
+              piece.failed ? 'Failed' : piece.stage.label,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -257,23 +442,14 @@ class _StateValue extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(2),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.textPrimary),
-          borderRadius: BorderRadius.circular(2),
-        ),
+      borderRadius: BorderRadius.circular(AppRadii.card),
+      child: AppCard(
+        margin: EdgeInsets.zero,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         child: Row(
           children: [
             Expanded(child: Text(label, style: theme.textTheme.labelMedium)),
-            Text(
-              '$count',
-              key: valueKey,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: AppColors.primaryAccent,
-              ),
-            ),
+            Text('$count', key: valueKey, style: AppTypography.homeNumberText),
           ],
         ),
       ),
@@ -320,6 +496,11 @@ class _BottomBenchNav extends StatelessWidget {
                 child: IconButton(
                   key: const Key('nav-create'),
                   onPressed: () => onSelected(index),
+                  style: IconButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadii.button),
+                    ),
+                  ),
                   icon: const Icon(
                     Icons.add,
                     color: AppColors.iconColor,
@@ -334,7 +515,7 @@ class _BottomBenchNav extends StatelessWidget {
                     'nav-${items[index].label.toLowerCase().replaceAll(' ', '-')}',
                   ),
                   onTap: () => onSelected(index),
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(AppRadii.button),
                   child: Container(
                     padding: const EdgeInsets.only(top: 6, bottom: 7),
                     decoration: BoxDecoration(
@@ -417,7 +598,7 @@ class _CreateActionMenu extends StatelessWidget {
         color: AppColors.appBackground,
         shape: RoundedRectangleBorder(
           side: const BorderSide(color: AppColors.textPrimary),
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(AppRadii.modal),
         ),
         child: SizedBox(
           width: 280,
@@ -456,6 +637,40 @@ class _CreateActionMenu extends StatelessWidget {
   }
 }
 
+class _MoreActionMenu extends StatelessWidget {
+  const _MoreActionMenu({required this.onMolds, super.key});
+
+  final VoidCallback onMolds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Material(
+        color: AppColors.appBackground,
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: AppColors.textPrimary),
+          borderRadius: BorderRadius.circular(AppRadii.modal),
+        ),
+        child: SizedBox(
+          width: 240,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _CreateMenuRow(
+                key: const Key('more-molds-button'),
+                label: 'Molds',
+                icon: Icons.category_outlined,
+                onTap: onMolds,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CreateMenuRow extends StatelessWidget {
   const _CreateMenuRow({
     required this.label,
@@ -472,6 +687,7 @@ class _CreateMenuRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.button),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         child: Row(

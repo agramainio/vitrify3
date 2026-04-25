@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'design_system.dart';
+import 'global_piece_search.dart';
+import 'mold_editor_screen.dart';
 import 'models.dart';
+import 'piece_detail_screen.dart';
 import 'studio_repository.dart';
 
 class PieceEditResult {
@@ -18,17 +21,27 @@ class PieceEditResult {
 }
 
 class PieceEditorScreen extends StatefulWidget {
-  const PieceEditorScreen.create({required this.repository, super.key})
-    : piece = null;
+  const PieceEditorScreen.create({
+    required this.repository,
+    required this.currentUser,
+    this.initialMold,
+    super.key,
+  }) : piece = null,
+       batchPieces = null;
 
   const PieceEditorScreen.edit({
     required this.repository,
     required this.piece,
+    this.currentUser,
+    this.batchPieces,
     super.key,
-  });
+  }) : initialMold = null;
 
   final StudioRepository repository;
   final Piece? piece;
+  final StudioUser? currentUser;
+  final Mold? initialMold;
+  final List<Piece>? batchPieces;
 
   bool get isEditing => piece != null;
 
@@ -58,20 +71,34 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   bool _editingColors = false;
   bool _editingCommerce = false;
   bool _editingState = false;
+  bool _showMoldSuggestions = false;
+  bool _showColorSuggestions = false;
+  bool _showLinkSuggestions = false;
+  bool _programmaticMoldText = false;
+  bool _programmaticColorText = false;
+  bool _programmaticLinkText = false;
 
   bool get _isIdentityChange {
-    final piece = widget.piece;
-    if (piece == null) {
+    final pieces =
+        widget.batchPieces ?? [if (widget.piece != null) widget.piece!];
+    if (pieces.isEmpty) {
       return false;
     }
 
     final selectedMoldId = _selectedMold?.id;
     final typedMoldName = normalizeSearch(_moldController.text);
-    final moldChanged = selectedMoldId != null
-        ? selectedMoldId != piece.mold.id
-        : typedMoldName.isNotEmpty &&
-              typedMoldName != piece.mold.normalizedName;
-    return moldChanged || !_sameColorIds(_selectedColors, piece.colors);
+    return pieces.any((piece) {
+      final moldChanged = selectedMoldId != null
+          ? selectedMoldId != piece.mold.id
+          : typedMoldName.isNotEmpty &&
+                typedMoldName != piece.mold.normalizedName;
+      return moldChanged || !_sameColorIds(_selectedColors, piece.colors);
+    });
+  }
+
+  StudioUser get _activeUser {
+    return widget.currentUser ??
+        const StudioUser(id: 'local-user', name: 'Local');
   }
 
   @override
@@ -81,7 +108,11 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
 
     _headerSearchController = TextEditingController();
     _moldController = TextEditingController(text: piece?.mold.name ?? '');
-    _quantityController = TextEditingController(text: '1');
+    _quantityController = TextEditingController(
+      text: widget.batchPieces == null
+          ? '1'
+          : widget.batchPieces!.length.toString(),
+    );
     _colorController = TextEditingController();
     _priceController = TextEditingController(
       text: piece == null ? '' : formatPrice(piece.price),
@@ -104,6 +135,10 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       _stage = piece.stage;
       _commercialState = piece.commercialState;
       _failed = piece.failed;
+    } else if (widget.initialMold != null) {
+      _selectedMold = widget.initialMold;
+      _moldController.text = widget.initialMold!.name;
+      _priceController.text = formatPrice(widget.initialMold!.defaultPrice);
     }
 
     _moldController.addListener(_handleMoldTextChange);
@@ -131,13 +166,14 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   }
 
   void _handleMoldTextChange() {
-    final exact = widget.repository.findExactMold(_moldController.text);
-    if (_selectedMold?.id == exact?.id) {
-      setState(() {});
+    if (_programmaticMoldText) {
       return;
     }
 
+    final query = _moldController.text.trim();
+    final exact = widget.repository.findExactMold(_moldController.text);
     setState(() {
+      _showMoldSuggestions = query.isNotEmpty;
       _selectedMold = exact;
       if (exact != null) {
         _priceController.text = formatPrice(exact.defaultPrice);
@@ -146,27 +182,38 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   }
 
   void _handleColorTextChange() {
-    setState(() {});
-  }
-
-  void _handleLinkTextChange() {
-    if (_destination == PieceDestination.stock) {
-      if (_selectedLinkedRecord != null) {
-        setState(() => _selectedLinkedRecord = null);
-      }
-      return;
-    }
-
-    final exact = widget.repository.findExactLinkedRecord(
-      _destination,
-      _linkController.text,
-    );
-    if (_selectedLinkedRecord?.id == exact?.id) {
-      setState(() {});
+    if (_programmaticColorText) {
       return;
     }
 
     setState(() {
+      _showColorSuggestions = _colorController.text.trim().isNotEmpty;
+    });
+  }
+
+  void _handleLinkTextChange() {
+    if (_programmaticLinkText) {
+      return;
+    }
+
+    if (_destination == PieceDestination.stock) {
+      if (_selectedLinkedRecord != null) {
+        setState(() {
+          _selectedLinkedRecord = null;
+          _showLinkSuggestions = false;
+        });
+      }
+      return;
+    }
+
+    final query = _linkController.text.trim();
+    final exact = widget.repository.findExactLinkedRecord(
+      _destination,
+      _linkController.text,
+    );
+
+    setState(() {
+      _showLinkSuggestions = query.isNotEmpty;
       _selectedLinkedRecord = exact;
     });
   }
@@ -185,15 +232,18 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
 
   String get _colorsLabel {
     if (_selectedColors.isEmpty) {
-      return 'No colors';
+      return 'No color';
     }
     return _selectedColors.map((color) => color.name).join(', ');
   }
 
   Future<void> _pickMold(Mold mold) async {
+    _programmaticMoldText = true;
+    _moldController.text = mold.name;
+    _programmaticMoldText = false;
     setState(() {
       _selectedMold = mold;
-      _moldController.text = mold.name;
+      _showMoldSuggestions = false;
       _priceController.text = formatPrice(mold.defaultPrice);
     });
   }
@@ -211,13 +261,29 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     }
 
     if (_selectedColors.any((item) => item.id == color.id)) {
-      setState(() => _colorController.clear());
+      _programmaticColorText = true;
+      _colorController.clear();
+      _programmaticColorText = false;
+      setState(() => _showColorSuggestions = false);
       return;
     }
 
+    _programmaticColorText = true;
+    _colorController.clear();
+    _programmaticColorText = false;
     setState(() {
       _selectedColors = List<StudioColor>.from(_selectedColors)..add(color);
-      _colorController.clear();
+      _showColorSuggestions = false;
+    });
+  }
+
+  void _selectNoColor() {
+    _programmaticColorText = true;
+    _colorController.clear();
+    _programmaticColorText = false;
+    setState(() {
+      _selectedColors = <StudioColor>[];
+      _showColorSuggestions = false;
     });
   }
 
@@ -240,26 +306,29 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
 
   bool get _canSubmit {
     final hasMold = _moldController.text.trim().isNotEmpty;
-    final hasColors =
-        _selectedColors.isNotEmpty || _colorController.text.trim().isNotEmpty;
-    final hasLink =
-        _destination == PieceDestination.stock ||
-        _linkController.text.trim().isNotEmpty;
     final hasFailureReason =
         !_failed || _failureReasonController.text.trim().isNotEmpty;
 
     return hasMold &&
-        hasColors &&
-        hasLink &&
         hasFailureReason &&
         _price != null &&
         _price! >= 0 &&
-        (widget.isEditing || _quantity > 0);
+        _quantity > 0;
   }
 
   Future<void> _submit() async {
     if (!_canSubmit) {
       return;
+    }
+
+    if (!widget.isEditing &&
+        _destination == PieceDestination.order &&
+        _selectedLinkedRecord == null &&
+        _linkController.text.trim().isEmpty) {
+      final confirmed = await _confirmOrderlessPiece();
+      if (confirmed != true) {
+        return;
+      }
     }
 
     if (_colorController.text.trim().isNotEmpty) {
@@ -286,7 +355,66 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
 
     if (widget.isEditing) {
       final piece = widget.piece!;
+      final batchPieces = widget.batchPieces;
       final identityChanged = _isIdentityChange;
+
+      if (batchPieces != null) {
+        if (_quantity != batchPieces.length) {
+          final created = await _createPiecesFromEditedAttributes(
+            mold: resolvedMold,
+            quantity: _quantity,
+            price: price,
+            linkedRecord: linkedRecord,
+            source: batchPieces.length == 1 ? batchPieces.first : null,
+          );
+          if (!mounted) {
+            return;
+          }
+          Navigator.of(
+            context,
+          ).pop(PieceEditResult(piece: created.first, identityChanged: true));
+          return;
+        }
+
+        final saved = await widget.repository.updatePieces([
+          for (final item in batchPieces)
+            item.copyWith(
+              mold: resolvedMold,
+              stage: _stage,
+              colors: List<StudioColor>.unmodifiable(_selectedColors),
+              price: price,
+              destination: _destination,
+              linkedRecord: linkedRecord,
+              failureRecord: _failureRecordFor(item),
+              commercialState: _commercialState,
+            ),
+        ]);
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context).pop(
+          PieceEditResult(piece: saved.first, identityChanged: identityChanged),
+        );
+        return;
+      }
+
+      if (_quantity != 1) {
+        final created = await _createPiecesFromEditedAttributes(
+          mold: resolvedMold,
+          quantity: _quantity,
+          price: price,
+          linkedRecord: linkedRecord,
+          source: piece,
+        );
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(
+          context,
+        ).pop(PieceEditResult(piece: created.first, identityChanged: true));
+        return;
+      }
+
       final updated = piece.copyWith(
         mold: resolvedMold,
         stage: _stage,
@@ -294,15 +422,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
         price: price,
         destination: _destination,
         linkedRecord: linkedRecord,
-        failureRecord: _failed
-            ? FailureRecord(
-                reason: _failureReasonController.text.trim(),
-                notes: _failureNotesController.text.trim().isEmpty
-                    ? null
-                    : _failureNotesController.text.trim(),
-                recordedAt: piece.failureRecord?.recordedAt ?? DateTime.now(),
-              )
-            : null,
+        failureRecord: _failureRecordFor(piece),
         commercialState: _commercialState,
       );
 
@@ -324,6 +444,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       destination: _destination,
       commercialState: defaultCommercialStateForDestination(_destination),
       linkedRecord: linkedRecord,
+      createdBy: widget.currentUser,
     );
     if (!mounted) {
       return;
@@ -331,18 +452,108 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     Navigator.of(context).pop(created);
   }
 
+  Future<List<Piece>> _createPiecesFromEditedAttributes({
+    required Mold mold,
+    required int quantity,
+    required double price,
+    required LinkedRecord? linkedRecord,
+    required Piece? source,
+  }) async {
+    final created = await widget.repository.createPieces(
+      mold: mold,
+      quantity: quantity,
+      colors: List<StudioColor>.unmodifiable(_selectedColors),
+      price: price,
+      destination: _destination,
+      commercialState: _commercialState,
+      linkedRecord: linkedRecord,
+      createdBy: _createdByFor(source),
+    );
+
+    if (_stage == PieceStage.toFire && !_failed) {
+      return created;
+    }
+
+    return widget.repository.updatePieces([
+      for (final piece in created)
+        piece.copyWith(
+          stage: _stage,
+          failureRecord: _failureRecordFor(null),
+          commercialState: _commercialState,
+        ),
+    ]);
+  }
+
+  StudioUser? _createdByFor(Piece? source) {
+    if (widget.currentUser != null) {
+      return widget.currentUser;
+    }
+
+    if (source?.createdByUserId == null) {
+      return null;
+    }
+
+    return StudioUser(
+      id: source!.createdByUserId!,
+      name: source.createdByUserName ?? 'Unknown',
+    );
+  }
+
+  FailureRecord? _failureRecordFor(Piece? piece) {
+    if (!_failed) {
+      return null;
+    }
+
+    return FailureRecord(
+      reason: _failureReasonController.text.trim(),
+      notes: _failureNotesController.text.trim().isEmpty
+          ? null
+          : _failureNotesController.text.trim(),
+      recordedAt: piece?.failureRecord?.recordedAt ?? DateTime.now(),
+    );
+  }
+
+  Future<bool?> _confirmOrderlessPiece() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('No order selected'),
+          content: const Text('This piece is not linked to any order.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const Key('confirm-orderless-piece-button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Create anyway'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _confirmDelete() async {
     final piece = widget.piece;
+    final batchPieces = widget.batchPieces;
     if (piece == null) {
       return;
     }
 
+    final deleteCount = batchPieces?.length ?? 1;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Delete piece'),
-          content: Text('Delete ${piece.id}? This cannot be undone.'),
+          title: Text(deleteCount == 1 ? 'Delete piece' : 'Delete pieces'),
+          content: Text(
+            deleteCount == 1
+                ? 'Delete ${piece.id}? This cannot be undone.'
+                : 'Delete $deleteCount pieces? This cannot be undone.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -361,7 +572,13 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       return;
     }
 
-    await widget.repository.deletePiece(piece.id);
+    if (batchPieces == null) {
+      await widget.repository.deletePiece(piece.id);
+    } else {
+      await widget.repository.deletePieces(
+        batchPieces.map((item) => item.id).toList(growable: false),
+      );
+    }
     if (!mounted) {
       return;
     }
@@ -369,12 +586,45 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     Navigator.of(context).pop(const PieceEditResult(deleted: true));
   }
 
+  Future<void> _openSearchPiece(Piece piece) async {
+    _headerSearchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) {
+          return PieceDetailScreen(
+            repository: widget.repository,
+            piece: piece,
+            currentUser: _activeUser,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openNewPiece() async {
+    _headerSearchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<List<Piece>>(
+      MaterialPageRoute(
+        builder: (context) {
+          return PieceEditorScreen.create(
+            repository: widget.repository,
+            currentUser: _activeUser,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final piece = widget.piece;
-    final screenName = widget.isEditing
-        ? '${_selectedMold?.name ?? piece!.mold.name} - $_colorsLabel'
-        : 'New piece';
+    final screenName = widget.batchPieces == null
+        ? widget.isEditing
+              ? '${_selectedMold?.name ?? piece!.mold.name} - $_colorsLabel'
+              : 'New piece'
+        : 'Edit ${widget.batchPieces!.length} pieces';
     final dateLabel = MaterialLocalizations.of(
       context,
     ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
@@ -387,7 +637,14 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
               screenName: screenName,
               dateLabel: dateLabel,
               searchController: _headerSearchController,
+              onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
+            ),
+            GlobalPieceSearchResults(
+              repository: widget.repository,
+              searchController: _headerSearchController,
+              onOpenPiece: _openSearchPiece,
+              onCreatePiece: _openNewPiece,
             ),
             Expanded(
               child: widget.isEditing
@@ -410,10 +667,10 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   Widget _buildCreateBody(BuildContext context) {
     final moldQuery = _moldController.text.trim();
     final colorQuery = _colorController.text.trim();
-    final moldSuggestions = moldQuery.isEmpty
+    final moldSuggestions = !_showMoldSuggestions || moldQuery.isEmpty
         ? const <Mold>[]
         : widget.repository.suggestMolds(moldQuery);
-    final colorSuggestions = colorQuery.isEmpty
+    final colorSuggestions = !_showColorSuggestions || colorQuery.isEmpty
         ? const <StudioColor>[]
         : widget.repository.suggestColors(colorQuery);
 
@@ -441,6 +698,13 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(labelText: 'Quantity'),
               ),
+              if (widget.isEditing) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Changing quantity creates new piece IDs.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
             ],
           ),
         ),
@@ -454,6 +718,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
             repository: widget.repository,
             onCommit: _commitColorQuery,
             onRemove: _removeColor,
+            onNoColor: _selectNoColor,
           ),
         ),
         AppSection(
@@ -462,6 +727,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
             destination: _destination,
             linkedRecord: _selectedLinkedRecord,
             linkController: _linkController,
+            showLinkSuggestions: _showLinkSuggestions,
             priceController: _priceController,
             repository: widget.repository,
             onDestinationSelected: _selectDestination,
@@ -480,27 +746,56 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
+        if (widget.batchPieces == null)
+          AppSection(
+            title: 'Identity',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Piece ID', style: theme.textTheme.labelMedium),
+                const SizedBox(height: 4),
+                Text(piece.id, style: theme.textTheme.bodyLarge),
+                const SizedBox(height: 12),
+                Text('Created', style: theme.textTheme.labelMedium),
+                const SizedBox(height: 4),
+                Text(
+                  _formatTimestamp(context, piece.createdAt),
+                  style: AppTypography.dateText,
+                ),
+                const SizedBox(height: 12),
+                Text('Updated', style: theme.textTheme.labelMedium),
+                const SizedBox(height: 4),
+                Text(
+                  _formatTimestamp(context, piece.updatedAt),
+                  style: AppTypography.dateText,
+                ),
+              ],
+            ),
+          )
+        else
+          AppSection(
+            title: 'Selection',
+            child: Text(
+              '${widget.batchPieces!.length} pieces selected',
+              style: theme.textTheme.bodyLarge,
+            ),
+          ),
         AppSection(
-          title: 'Identity',
+          title: 'Quantity',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Piece ID', style: theme.textTheme.labelMedium),
-              const SizedBox(height: 4),
-              Text(piece.id, style: theme.textTheme.bodyLarge),
-              const SizedBox(height: 12),
-              Text('Created', style: theme.textTheme.labelMedium),
-              const SizedBox(height: 4),
-              Text(
-                _formatTimestamp(context, piece.createdAt),
-                style: AppTypography.dateText,
+              TextField(
+                key: const Key('edit-quantity-input'),
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(labelText: 'Quantity'),
               ),
-              const SizedBox(height: 12),
-              Text('Updated', style: theme.textTheme.labelMedium),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
-                _formatTimestamp(context, piece.updatedAt),
-                style: AppTypography.dateText,
+                'Changing quantity creates new piece IDs.',
+                style: theme.textTheme.bodyMedium,
               ),
             ],
           ),
@@ -528,6 +823,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
             destination: _destination,
             linkedRecord: _selectedLinkedRecord,
             linkController: _linkController,
+            showLinkSuggestions: _showLinkSuggestions,
             priceController: _priceController,
             repository: widget.repository,
             onDestinationSelected: _selectDestination,
@@ -556,7 +852,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
 
   Widget _buildMoldEditControls() {
     final moldQuery = _moldController.text.trim();
-    final moldSuggestions = moldQuery.isEmpty
+    final moldSuggestions = !_showMoldSuggestions || moldQuery.isEmpty
         ? const <Mold>[]
         : widget.repository.suggestMolds(moldQuery);
 
@@ -572,7 +868,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
 
   Widget _buildColorEditControls() {
     final colorQuery = _colorController.text.trim();
-    final colorSuggestions = colorQuery.isEmpty
+    final colorSuggestions = !_showColorSuggestions || colorQuery.isEmpty
         ? const <StudioColor>[]
         : widget.repository.suggestColors(colorQuery);
 
@@ -584,6 +880,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       repository: widget.repository,
       onCommit: _commitColorQuery,
       onRemove: _removeColor,
+      onNoColor: _selectNoColor,
     );
   }
 
@@ -642,7 +939,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     final linked = _selectedLinkedRecord == null
         ? ''
         : ' - ${_selectedLinkedRecord!.label}';
-    return '${_destination.label}$linked - ${formatPrice(_price ?? 0)}';
+    return '${_destination.label}$linked - ${formatPriceEuro(_price ?? 0)}';
   }
 
   String get _stateSummary {
@@ -655,14 +952,61 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       return;
     }
 
-    final created = await widget.repository.createMold(
-      name: query,
-      defaultPrice: _price ?? 0,
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You are being redirected to create a new mold.'),
+      ),
     );
+
+    final created = await Navigator.of(context).push<Mold>(
+      MaterialPageRoute(
+        builder: (context) => MoldEditorScreen(
+          repository: widget.repository,
+          currentUser: _activeUser,
+          initialName: query,
+          initialPrice: _price ?? 0,
+        ),
+      ),
+    );
+
     if (!mounted) {
       return;
     }
-    await _pickMold(created);
+
+    if (created == null) {
+      return;
+    }
+
+    final returnToPiece = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Mold created successfully'),
+          content: const Text('Return to create a piece from this mold?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('No'),
+            ),
+            TextButton(
+              key: const Key('return-with-created-mold-button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Yes'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (returnToPiece == true) {
+      await _pickMold(created);
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   void _removeColor(StudioColor color) {
@@ -674,28 +1018,37 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   }
 
   void _selectDestination(PieceDestination destination) {
+    _programmaticLinkText = true;
+    _linkController.clear();
+    _programmaticLinkText = false;
     setState(() {
       final destinationChanged = _destination != destination;
       _destination = destination;
       if (destination == PieceDestination.stock || destinationChanged) {
-        _linkController.clear();
         _selectedLinkedRecord = null;
+        _showLinkSuggestions = false;
       }
       _commercialState = defaultCommercialStateForDestination(destination);
     });
   }
 
   void _clearLinkedRecord() {
+    _programmaticLinkText = true;
+    _linkController.clear();
+    _programmaticLinkText = false;
     setState(() {
       _selectedLinkedRecord = null;
-      _linkController.clear();
+      _showLinkSuggestions = false;
     });
   }
 
   void _selectLinkedRecord(LinkedRecord record) {
+    _programmaticLinkText = true;
+    _linkController.text = record.label;
+    _programmaticLinkText = false;
     setState(() {
       _selectedLinkedRecord = record;
-      _linkController.text = record.label;
+      _showLinkSuggestions = false;
     });
   }
 
@@ -780,6 +1133,7 @@ class _ColorEditor extends StatelessWidget {
     required this.repository,
     required this.onCommit,
     required this.onRemove,
+    required this.onNoColor,
   });
 
   final List<StudioColor> selectedColors;
@@ -789,6 +1143,7 @@ class _ColorEditor extends StatelessWidget {
   final StudioRepository repository;
   final Future<void> Function([String? value]) onCommit;
   final ValueChanged<StudioColor> onRemove;
+  final VoidCallback onNoColor;
 
   @override
   Widget build(BuildContext context) {
@@ -806,6 +1161,13 @@ class _ColorEditor extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
+        _FilterChip(
+          key: const Key('no-color-option'),
+          label: 'No color',
+          selected: selectedColors.isEmpty && query.isEmpty,
+          onTap: onNoColor,
+        ),
+        const SizedBox(height: 12),
         TextField(
           key: const Key('color-input'),
           controller: colorController,
@@ -841,6 +1203,7 @@ class _CommerceEditor extends StatelessWidget {
     required this.destination,
     required this.linkedRecord,
     required this.linkController,
+    required this.showLinkSuggestions,
     required this.priceController,
     required this.repository,
     required this.onDestinationSelected,
@@ -852,6 +1215,7 @@ class _CommerceEditor extends StatelessWidget {
   final PieceDestination destination;
   final LinkedRecord? linkedRecord;
   final TextEditingController linkController;
+  final bool showLinkSuggestions;
   final TextEditingController priceController;
   final StudioRepository repository;
   final ValueChanged<PieceDestination> onDestinationSelected;
@@ -862,7 +1226,8 @@ class _CommerceEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final linkQuery = linkController.text.trim();
-    final linkSuggestions = destination == PieceDestination.stock
+    final linkSuggestions =
+        !showLinkSuggestions || destination == PieceDestination.stock
         ? const <LinkedRecord>[]
         : linkQuery.isEmpty
         ? const <LinkedRecord>[]
@@ -1002,7 +1367,7 @@ class _LinkedRecordSummary extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.textPrimary),
-        borderRadius: BorderRadius.circular(2),
+        borderRadius: BorderRadius.circular(AppRadii.card),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1090,7 +1455,7 @@ class _SuggestionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(2),
+      borderRadius: BorderRadius.circular(AppRadii.button),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -1115,7 +1480,7 @@ class _TagChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.textPrimary),
-        borderRadius: BorderRadius.circular(2),
+        borderRadius: BorderRadius.circular(AppRadii.button),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1185,13 +1550,13 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(2),
+      borderRadius: BorderRadius.circular(AppRadii.button),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryAccent : AppColors.appBackground,
           border: Border.all(color: AppColors.textPrimary),
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(AppRadii.button),
         ),
         child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
       ),

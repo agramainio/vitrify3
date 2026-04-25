@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'design_system.dart';
+import 'global_piece_search.dart';
 import 'models.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
@@ -9,11 +10,13 @@ class PieceDetailScreen extends StatefulWidget {
   const PieceDetailScreen({
     required this.repository,
     required this.piece,
+    required this.currentUser,
     super.key,
   });
 
   final StudioRepository repository;
   final Piece piece;
+  final StudioUser currentUser;
 
   @override
   State<PieceDetailScreen> createState() => _PieceDetailScreenState();
@@ -22,6 +25,7 @@ class PieceDetailScreen extends StatefulWidget {
 class _PieceDetailScreenState extends State<PieceDetailScreen> {
   late final TextEditingController _headerSearchController;
   late Piece _piece;
+  bool _showMore = false;
 
   @override
   void initState() {
@@ -43,6 +47,7 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
           return PieceEditorScreen.edit(
             repository: widget.repository,
             piece: _piece,
+            currentUser: widget.currentUser,
           );
         },
       ),
@@ -97,6 +102,37 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _openSearchPiece(Piece piece) async {
+    _headerSearchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) {
+          return PieceDetailScreen(
+            repository: widget.repository,
+            piece: piece,
+            currentUser: widget.currentUser,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openNewPiece() async {
+    _headerSearchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<List<Piece>>(
+      MaterialPageRoute(
+        builder: (context) {
+          return PieceEditorScreen.create(
+            repository: widget.repository,
+            currentUser: widget.currentUser,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateLabel = MaterialLocalizations.of(
@@ -111,7 +147,14 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
               screenName: _piece.mold.name,
               dateLabel: dateLabel,
               searchController: _headerSearchController,
+              onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
+            ),
+            GlobalPieceSearchResults(
+              repository: widget.repository,
+              searchController: _headerSearchController,
+              onOpenPiece: _openSearchPiece,
+              onCreatePiece: _openNewPiece,
             ),
             Expanded(
               child: ListView(
@@ -123,6 +166,8 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
                       children: [
                         _DetailLine(label: 'Colors', value: _colorsLabel),
                         _DetailLine(label: 'Status', value: _piece.stage.label),
+                        if (_piece.failed)
+                          const _DetailLine(label: 'Failure', value: 'Failed'),
                         _DetailLine(label: 'Owner', value: _ownerLabel),
                         _DetailLine(
                           label: 'Destination',
@@ -130,16 +175,32 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
                         ),
                         _DetailLine(
                           label: 'Price',
-                          value: formatPrice(_piece.price),
+                          value: formatPriceEuro(_piece.price),
                         ),
-                        _DetailLine(label: 'Piece ID', value: _piece.id),
-                        _DetailLine(
-                          label: 'Updated',
-                          value: MaterialLocalizations.of(
-                            context,
-                          ).formatMediumDate(_piece.updatedAt),
-                          style: AppTypography.dateText,
+                        TextButton(
+                          key: const Key('piece-see-more-button'),
+                          onPressed: () {
+                            setState(() => _showMore = !_showMore);
+                          },
+                          child: Text(_showMore ? 'See less' : 'See more'),
                         ),
+                        if (_showMore) ...[
+                          _DetailLine(label: 'Piece ID', value: _piece.id),
+                          _DetailLine(
+                            label: 'Created',
+                            value: MaterialLocalizations.of(
+                              context,
+                            ).formatMediumDate(_piece.createdAt),
+                            style: AppTypography.dateText,
+                          ),
+                          _DetailLine(
+                            label: 'Updated',
+                            value: MaterialLocalizations.of(
+                              context,
+                            ).formatMediumDate(_piece.updatedAt),
+                            style: AppTypography.dateText,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -177,7 +238,7 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
 
   String get _colorsLabel {
     if (_piece.colors.isEmpty) {
-      return '-';
+      return 'No color';
     }
     return _piece.colors.map((color) => color.name).join(', ');
   }
@@ -189,7 +250,9 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
 
     switch (_piece.destination) {
       case PieceDestination.stock:
-        return 'Stock';
+        return _piece.createdByUserName == null
+            ? '${widget.currentUser.name}\'s stock'
+            : '${_piece.createdByUserName}\'s stock';
       case PieceDestination.order:
         return 'Client';
       case PieceDestination.workshop:

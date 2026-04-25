@@ -20,28 +20,31 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
     final now = DateTime.now();
     final molds = <Mold>[
       Mold(
-        id: 'mold-cup-classic',
+        id: 'mold_seed_001',
         name: 'Classic Cup',
         normalizedName: normalizeSearch('Classic Cup'),
-        size: 'M',
+        description: 'Everyday cup mold.',
+        size: MoldSize.medium,
         targetReadyStock: 10,
         defaultPrice: 28,
         createdAt: now.subtract(const Duration(days: 10)),
       ),
       Mold(
-        id: 'mold-ripple-bowl',
+        id: 'mold_seed_002',
         name: 'Ripple Bowl',
         normalizedName: normalizeSearch('Ripple Bowl'),
-        size: 'L',
+        description: 'Low bowl with soft rim movement.',
+        size: MoldSize.large,
         targetReadyStock: 8,
         defaultPrice: 42,
         createdAt: now.subtract(const Duration(days: 7)),
       ),
       Mold(
-        id: 'mold-oval-plate',
+        id: 'mold_seed_003',
         name: 'Oval Plate',
         normalizedName: normalizeSearch('Oval Plate'),
-        size: 'XL',
+        description: 'Service plate for stock and client sets.',
+        size: MoldSize.extraLarge,
         targetReadyStock: 6,
         defaultPrice: 38,
         createdAt: now.subtract(const Duration(days: 3)),
@@ -160,7 +163,6 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
   final List<Piece> _pieces;
   final Random _random = Random();
 
-  int _moldCounter = 100;
   int _colorCounter = 100;
   int _linkCounter = 100;
 
@@ -196,28 +198,80 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
   @override
   Future<Mold> createMold({
     required String name,
-    String? size,
+    String? description,
+    MoldSize? size,
+    MoldImageReference? imageReference,
     int targetReadyStock = 0,
     double defaultPrice = 0,
   }) async {
     final existing = findExactMold(name);
     if (existing != null) {
-      return existing;
+      throw StateError('Mold names must be unique.');
     }
 
-    _moldCounter += 1;
+    final now = DateTime.now();
     final mold = Mold(
-      id: 'mold-$_moldCounter',
+      id: 'mold_${now.microsecondsSinceEpoch}_${_randomSuffix()}',
       name: name.trim(),
       normalizedName: normalizeSearch(name),
+      description: _emptyToNull(description),
       size: size,
+      imageReference: imageReference,
       targetReadyStock: targetReadyStock,
       defaultPrice: defaultPrice,
-      createdAt: DateTime.now(),
+      createdAt: now,
     );
     _molds.add(mold);
     notifyListeners();
     return mold;
+  }
+
+  @override
+  List<Mold> allMolds({bool includeInactive = false}) {
+    final molds = includeInactive
+        ? _molds
+        : _molds.where((mold) => mold.active).toList(growable: false);
+    final sorted = molds.toList()
+      ..sort((left, right) => left.name.compareTo(right.name));
+    return List<Mold>.unmodifiable(sorted);
+  }
+
+  @override
+  Future<Mold> updateMold(Mold mold) async {
+    final index = _molds.indexWhere((item) => item.id == mold.id);
+    if (index == -1) {
+      throw StateError('Mold not found.');
+    }
+
+    final duplicate = _molds.any(
+      (item) =>
+          item.id != mold.id &&
+          item.active &&
+          item.normalizedName == mold.normalizedName,
+    );
+    if (duplicate) {
+      throw StateError('Mold names must be unique.');
+    }
+
+    _molds[index] = mold;
+    for (var pieceIndex = 0; pieceIndex < _pieces.length; pieceIndex += 1) {
+      if (_pieces[pieceIndex].mold.id == mold.id) {
+        _pieces[pieceIndex] = _pieces[pieceIndex].copyWith(mold: mold);
+      }
+    }
+    notifyListeners();
+    return mold;
+  }
+
+  @override
+  Future<void> deleteMold(String moldId) async {
+    final index = _molds.indexWhere((item) => item.id == moldId);
+    if (index == -1) {
+      return;
+    }
+
+    _molds[index] = _molds[index].copyWith(active: false);
+    notifyListeners();
   }
 
   @override
@@ -332,8 +386,12 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
     required PieceDestination destination,
     required CommercialState commercialState,
     LinkedRecord? linkedRecord,
+    StudioUser? createdBy,
   }) async {
     final now = DateTime.now();
+    final groupId = quantity > 1
+        ? 'piece_group_${now.microsecondsSinceEpoch}_${_randomSuffix()}'
+        : null;
     final created = List<Piece>.generate(quantity, (index) {
       return Piece(
         id: _generatePieceId(mold: mold, colors: colors),
@@ -346,6 +404,9 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
         commercialState: commercialState,
         createdAt: now.add(Duration(milliseconds: index)),
         updatedAt: now.add(Duration(milliseconds: index)),
+        creationGroupId: groupId,
+        createdByUserId: createdBy?.id,
+        createdByUserName: createdBy?.name,
       );
     });
 
@@ -374,6 +435,7 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
         id: _generatePieceId(mold: piece.mold, colors: piece.colors),
         createdAt: now,
         updatedAt: now,
+        creationGroupId: null,
       );
       _pieces.insert(0, createdFromEdit);
       notifyListeners();
@@ -386,8 +448,24 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
   }
 
   @override
+  Future<List<Piece>> updatePieces(List<Piece> pieces) async {
+    final updated = <Piece>[];
+    for (final piece in pieces) {
+      updated.add(await updatePiece(piece));
+    }
+    return updated;
+  }
+
+  @override
   Future<void> deletePiece(String pieceId) async {
     _pieces.removeWhere((piece) => piece.id == pieceId);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> deletePieces(List<String> pieceIds) async {
+    final ids = pieceIds.toSet();
+    _pieces.removeWhere((piece) => ids.contains(piece.id));
     notifyListeners();
   }
 
@@ -512,5 +590,13 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
       4,
       (_) => alphabet[_random.nextInt(alphabet.length)],
     ).join();
+  }
+
+  String? _emptyToNull(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    return trimmed;
   }
 }

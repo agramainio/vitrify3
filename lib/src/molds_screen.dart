@@ -7,6 +7,7 @@ import 'mold_editor_screen.dart';
 import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
+import 'user_history_screen.dart';
 
 class MoldsScreen extends StatefulWidget {
   const MoldsScreen({
@@ -51,6 +52,34 @@ class _MoldsScreenState extends State<MoldsScreen> {
           mold: mold,
           currentUser: widget.currentUser,
         ),
+      ),
+    );
+  }
+
+  Future<void> _createMold() async {
+    _searchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<Mold>(
+      MaterialPageRoute(
+        builder: (context) => MoldEditorScreen(
+          repository: widget.repository,
+          currentUser: widget.currentUser,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openUserHistory() async {
+    _searchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) {
+          return UserHistoryScreen(
+            repository: widget.repository,
+            currentUser: widget.currentUser,
+          );
+        },
       ),
     );
   }
@@ -130,6 +159,7 @@ class _MoldsScreenState extends State<MoldsScreen> {
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
+              onUserTap: _openUserHistory,
             ),
             GlobalPieceSearchResults(
               repository: widget.repository,
@@ -156,6 +186,16 @@ class _MoldsScreenState extends State<MoldsScreen> {
                   return ListView(
                     padding: EdgeInsets.zero,
                     children: [
+                      AppSection(
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            key: const Key('create-mold-button'),
+                            onPressed: _createMold,
+                            child: const Text('Create mold'),
+                          ),
+                        ),
+                      ),
                       AppSection(
                         child: molds.isEmpty
                             ? Text(

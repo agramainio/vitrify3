@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'design_system.dart';
 import 'global_piece_search.dart';
 import 'models.dart';
+import 'mold_image_panel.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
+import 'user_history_screen.dart';
 
 class PieceDetailScreen extends StatefulWidget {
   const PieceDetailScreen({
@@ -102,6 +105,51 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _pickMoldImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    final file = result?.files.single;
+    if (file == null) {
+      return;
+    }
+
+    final updatedMold = await widget.repository.updateMold(
+      _piece.mold.copyWith(
+        imageReference: MoldImageReference(
+          fileName: file.name,
+          mimeType: file.extension == null ? null : 'image/${file.extension}',
+          sizeBytes: file.size,
+          bytes: file.bytes,
+        ),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _piece = _piece.copyWith(mold: updatedMold);
+    });
+  }
+
+  Future<void> _openUserHistory() async {
+    _headerSearchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) {
+          return UserHistoryScreen(
+            repository: widget.repository,
+            currentUser: widget.currentUser,
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _openSearchPiece(Piece piece) async {
     _headerSearchController.clear();
     setState(() {});
@@ -149,6 +197,7 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
               searchController: _headerSearchController,
               onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
+              onUserTap: _openUserHistory,
             ),
             GlobalPieceSearchResults(
               repository: widget.repository,
@@ -202,6 +251,13 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
                           ),
                         ],
                       ],
+                    ),
+                  ),
+                  AppSection(
+                    title: 'Mold image',
+                    child: MoldImagePanel(
+                      imageReference: _piece.mold.imageReference,
+                      onUpload: _pickMoldImage,
                     ),
                   ),
                 ],

@@ -83,6 +83,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
+              onUserTap: () {},
             ),
             GlobalPieceSearchResults(
               repository: widget.repository,
@@ -115,10 +116,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                             : Column(
                                 children: [
                                   for (final piece in pieces)
-                                    AppCard(
+                                    _UserHistoryRow(
                                       key: Key('user-history-${piece.id}'),
+                                      piece: piece,
                                       onTap: () => _openPiece(piece),
-                                      child: _UserHistoryPiece(piece: piece),
                                     ),
                                 ],
                               ),
@@ -135,31 +136,63 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   }
 }
 
-class _UserHistoryPiece extends StatelessWidget {
-  const _UserHistoryPiece({required this.piece});
+class _UserHistoryRow extends StatelessWidget {
+  const _UserHistoryRow({required this.piece, required this.onTap, super.key});
 
   final Piece piece;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = piece.colors.isEmpty
         ? 'No color'
         : piece.colors.map((color) => color.name).join(', ');
-    final flags = <String>[
+    final details = <String>[
       piece.stage.label,
       piece.destination.label,
       if (piece.failed) 'Failed',
     ].join(' - ');
+    final dateLabel = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(piece.updatedAt);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(piece.mold.name, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.related),
-        Text(colors, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 4),
-        Text(flags, style: Theme.of(context).textTheme.labelMedium),
-      ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.button),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.shellBackground)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    piece.mold.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    colors,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(details, style: Theme.of(context).textTheme.labelMedium),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.related),
+            Text(dateLabel, style: AppTypography.dateText),
+          ],
+        ),
+      ),
     );
   }
 }

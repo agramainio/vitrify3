@@ -144,7 +144,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('small').last);
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('pick-mold-image-button')), findsOneWidget);
+      expect(find.byKey(const Key('upload-mold-image-button')), findsOneWidget);
       await tester.enterText(find.byKey(const Key('mold-price-input')), '55');
       await tester.tap(find.byKey(const Key('save-mold-button')));
       await tester.pumpAndSettle();
@@ -212,6 +212,62 @@ void main() {
     expect(find.byKey(const Key('stage-filter-To glaze')), findsOneWidget);
     expect(find.byKey(Key('piece-row-${bisquePiece.id}')), findsOneWidget);
     expect(find.byKey(Key('piece-row-${readyPiece.id}')), findsNothing);
+  });
+
+  testWidgets('new piece confirms before leaving with unsaved changes', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    _configureMobileViewport(tester);
+
+    await _pumpVitrifyApp(tester, repository);
+
+    await tester.tap(find.byKey(const Key('nav-create')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('new-piece-button')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('mold-input')), 'Cup');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('header-back-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Do you want to leave?'), findsOneWidget);
+    expect(find.text('Unsaved changes will be lost.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('stay-on-form-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('mold-input')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('header-back-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('leave-form-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('nav-create')), findsOneWidget);
+  });
+
+  testWidgets('molds page exposes create and edit uses Edit action label', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    final mold = repository.findExactMold('Classic Cup')!;
+    _configureMobileViewport(tester);
+
+    await _pumpVitrifyApp(tester, repository);
+    await tester.tap(find.byKey(const Key('header-more-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('more-molds-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('create-mold-button')), findsOneWidget);
+
+    await tester.tap(find.byKey(Key('edit-mold-${mold.id}')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit'), findsWidgets);
+    expect(find.byKey(const Key('save-mold-button')), findsOneWidget);
   });
 
   testWidgets('plus create flow stays direct and collapses selected order', (
@@ -421,6 +477,9 @@ void main() {
 
     await _pumpVitrifyApp(tester, repository);
     await tester.tap(find.byKey(const Key('header-user-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+    await tester.tap(find.text('History').last);
     await tester.pumpAndSettle();
 
     expect(find.text(_testUser.name), findsOneWidget);

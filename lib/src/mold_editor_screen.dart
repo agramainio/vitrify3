@@ -5,9 +5,11 @@ import 'package:file_picker/file_picker.dart';
 import 'design_system.dart';
 import 'global_piece_search.dart';
 import 'models.dart';
+import 'mold_image_panel.dart';
 import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
+import 'user_history_screen.dart';
 
 class MoldEditorScreen extends StatefulWidget {
   const MoldEditorScreen({
@@ -48,6 +50,7 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
   MoldImageReference? _selectedImage;
   bool _showSummary = false;
   String? _submitError;
+  bool _allowExit = false;
 
   @override
   void initState() {
@@ -58,7 +61,7 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
     )..addListener(_handleChange);
     _descriptionController = TextEditingController(
       text: widget.mold?.description ?? '',
-    );
+    )..addListener(_handleChange);
     _priceController = TextEditingController(
       text: widget.mold == null
           ? widget.initialPrice == null
@@ -76,7 +79,9 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
     _nameController
       ..removeListener(_handleChange)
       ..dispose();
-    _descriptionController.dispose();
+    _descriptionController
+      ..removeListener(_handleChange)
+      ..dispose();
     _priceController
       ..removeListener(_handleChange)
       ..dispose();
@@ -107,6 +112,59 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
         !_nameIsDuplicate &&
         _price != null &&
         _price! >= 0;
+  }
+
+  bool get _hasUnsavedChanges {
+    if (_allowExit) {
+      return false;
+    }
+
+    if (_showSummary) {
+      return true;
+    }
+
+    final mold = widget.mold;
+    if (mold == null) {
+      return _nameController.text.trim().isNotEmpty ||
+          _descriptionController.text.trim().isNotEmpty ||
+          _selectedSize != null ||
+          _selectedImage != null ||
+          _priceController.text.trim().isNotEmpty;
+    }
+
+    return _nameController.text.trim() != mold.name ||
+        _descriptionController.text.trim() != (mold.description ?? '') ||
+        _selectedSize != mold.size ||
+        _selectedImage != mold.imageReference ||
+        (_price ?? -1) != mold.defaultPrice;
+  }
+
+  Future<bool> _confirmLeaveIfNeeded() async {
+    if (!_hasUnsavedChanges) {
+      return true;
+    }
+
+    return confirmDiscardUnsavedChanges(context);
+  }
+
+  Future<void> _leaveCurrentForm() async {
+    setState(() => _allowExit = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) {
+      Navigator.of(context).maybePop();
+    }
+  }
+
+  Future<void> _maybePop() async {
+    if (await _confirmLeaveIfNeeded() && mounted) {
+      await _leaveCurrentForm();
+    }
+  }
+
+  Future<void> _handleBlockedPop() async {
+    if (await _confirmLeaveIfNeeded() && mounted) {
+      await _leaveCurrentForm();
+    }
   }
 
   void _review() {
@@ -170,7 +228,11 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
         return;
       }
 
-      Navigator.of(context).pop(mold);
+      setState(() => _allowExit = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) {
+        Navigator.of(context).pop(mold);
+      }
     } on StateError catch (error) {
       if (!mounted) {
         return;
@@ -183,6 +245,10 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
   }
 
   Future<void> _openSearchPiece(Piece piece) async {
+    if (!await _confirmLeaveIfNeeded() || !mounted) {
+      return;
+    }
+
     _headerSearchController.clear();
     setState(() {});
     await Navigator.of(context).push<void>(
@@ -199,6 +265,10 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
   }
 
   Future<void> _openNewPiece() async {
+    if (!await _confirmLeaveIfNeeded() || !mounted) {
+      return;
+    }
+
     _headerSearchController.clear();
     setState(() {});
     await Navigator.of(context).push<List<Piece>>(
@@ -213,39 +283,72 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
     );
   }
 
+  Future<void> _openUserHistory() async {
+    if (!await _confirmLeaveIfNeeded() || !mounted) {
+      return;
+    }
+
+    _headerSearchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) {
+          return UserHistoryScreen(
+            repository: widget.repository,
+            currentUser: widget.currentUser,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateLabel = MaterialLocalizations.of(
       context,
     ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            AppHeader(
-              screenName: widget.isEditing ? 'Edit mold' : 'New mold',
-              dateLabel: dateLabel,
-              searchController: _headerSearchController,
-              onSearchChanged: (_) => setState(() {}),
-              onBack: () => Navigator.of(context).maybePop(),
-            ),
-            GlobalPieceSearchResults(
-              repository: widget.repository,
-              searchController: _headerSearchController,
-              onOpenPiece: _openSearchPiece,
-              onCreatePiece: _openNewPiece,
-            ),
-            Expanded(
-              child: _showSummary ? _buildSummary(context) : _buildForm(),
-            ),
-            _showSummary
-                ? _MoldSummaryActions(
-                    onEdit: () => setState(() => _showSummary = false),
-                    onConfirm: _confirm,
-                  )
-                : _MoldFormActions(canSubmit: _canReview, onSubmit: _review),
-          ],
+    return PopScope<Object?>(
+      canPop: _allowExit || !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          return;
+        }
+        _handleBlockedPop();
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              AppHeader(
+                screenName: widget.isEditing ? 'Edit mold' : 'New mold',
+                dateLabel: dateLabel,
+                searchController: _headerSearchController,
+                onSearchChanged: (_) => setState(() {}),
+                onBack: _maybePop,
+                onUserTap: _openUserHistory,
+              ),
+              GlobalPieceSearchResults(
+                repository: widget.repository,
+                searchController: _headerSearchController,
+                onOpenPiece: _openSearchPiece,
+                onCreatePiece: _openNewPiece,
+              ),
+              Expanded(
+                child: _showSummary ? _buildSummary(context) : _buildForm(),
+              ),
+              _showSummary
+                  ? _MoldSummaryActions(
+                      onEdit: () => setState(() => _showSummary = false),
+                      onConfirm: _confirm,
+                    )
+                  : _MoldFormActions(
+                      canSubmit: _canReview,
+                      onSubmit: _review,
+                      label: widget.isEditing ? 'Edit' : 'Create',
+                    ),
+            ],
+          ),
         ),
       ),
     );
@@ -291,27 +394,6 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
                 onChanged: (value) => setState(() => _selectedSize = value),
               ),
               const SizedBox(height: AppSpacing.related),
-              AppCard(
-                margin: EdgeInsets.zero,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _selectedImage?.fileName ?? 'No image selected',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                    TextButton(
-                      key: const Key('pick-mold-image-button'),
-                      onPressed: _pickImage,
-                      child: const Text('Upload image'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.related),
               TextField(
                 key: const Key('mold-price-input'),
                 controller: _priceController,
@@ -325,6 +407,11 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
                   labelText: 'Price',
                   errorText: _price == null ? 'Enter a valid price' : null,
                 ),
+              ),
+              const SizedBox(height: AppSpacing.gutter),
+              MoldImagePanel(
+                imageReference: _selectedImage,
+                onUpload: _pickImage,
               ),
             ],
           ),
@@ -412,10 +499,15 @@ class _SummaryLine extends StatelessWidget {
 }
 
 class _MoldFormActions extends StatelessWidget {
-  const _MoldFormActions({required this.canSubmit, required this.onSubmit});
+  const _MoldFormActions({
+    required this.canSubmit,
+    required this.onSubmit,
+    required this.label,
+  });
 
   final bool canSubmit;
   final VoidCallback onSubmit;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -427,7 +519,7 @@ class _MoldFormActions extends StatelessWidget {
         child: FilledButton(
           key: const Key('save-mold-button'),
           onPressed: canSubmit ? onSubmit : null,
-          child: const Text('Create'),
+          child: Text(label),
         ),
       ),
     );

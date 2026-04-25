@@ -7,6 +7,7 @@ import 'mold_editor_screen.dart';
 import 'models.dart';
 import 'piece_detail_screen.dart';
 import 'studio_repository.dart';
+import 'user_history_screen.dart';
 
 class PieceEditResult {
   const PieceEditResult({
@@ -77,6 +78,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   bool _programmaticMoldText = false;
   bool _programmaticColorText = false;
   bool _programmaticLinkText = false;
+  bool _allowExit = false;
 
   bool get _isIdentityChange {
     final pieces =
@@ -99,6 +101,75 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   StudioUser get _activeUser {
     return widget.currentUser ??
         const StudioUser(id: 'local-user', name: 'Local');
+  }
+
+  bool get _hasUnsavedChanges {
+    if (_allowExit) {
+      return false;
+    }
+
+    final piece = widget.piece;
+    if (piece == null) {
+      return _moldController.text.trim().isNotEmpty ||
+          _selectedMold != null ||
+          _quantityController.text.trim() != '1' ||
+          _selectedColors.isNotEmpty ||
+          _colorController.text.trim().isNotEmpty ||
+          _priceController.text.trim().isNotEmpty ||
+          _destination != PieceDestination.stock ||
+          _linkController.text.trim().isNotEmpty;
+    }
+
+    return _quantityController.text.trim() !=
+            (widget.batchPieces?.length ?? 1).toString() ||
+        _isIdentityChange ||
+        _destination != piece.destination ||
+        _stage != piece.stage ||
+        _commercialState != piece.commercialState ||
+        _price != piece.price ||
+        (_selectedLinkedRecord?.id ?? _linkController.text.trim()) !=
+            (piece.linkedRecord?.id ?? '') ||
+        _failed != piece.failed ||
+        _failureReasonController.text.trim() !=
+            (piece.failureRecord?.reason ?? '') ||
+        _failureNotesController.text.trim() !=
+            (piece.failureRecord?.notes ?? '');
+  }
+
+  Future<bool> _confirmLeaveIfNeeded() async {
+    if (!_hasUnsavedChanges) {
+      return true;
+    }
+
+    return confirmDiscardUnsavedChanges(context);
+  }
+
+  Future<void> _leaveCurrentForm() async {
+    setState(() => _allowExit = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) {
+      Navigator.of(context).maybePop();
+    }
+  }
+
+  Future<void> _maybePop() async {
+    if (await _confirmLeaveIfNeeded() && mounted) {
+      await _leaveCurrentForm();
+    }
+  }
+
+  Future<void> _handleBlockedPop() async {
+    if (await _confirmLeaveIfNeeded() && mounted) {
+      await _leaveCurrentForm();
+    }
+  }
+
+  Future<void> _popEditor(Object? result) async {
+    setState(() => _allowExit = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) {
+      Navigator.of(context).pop(result);
+    }
   }
 
   @override
@@ -142,8 +213,12 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     }
 
     _moldController.addListener(_handleMoldTextChange);
+    _quantityController.addListener(_handleFieldChange);
     _colorController.addListener(_handleColorTextChange);
+    _priceController.addListener(_handleFieldChange);
     _linkController.addListener(_handleLinkTextChange);
+    _failureReasonController.addListener(_handleFieldChange);
+    _failureNotesController.addListener(_handleFieldChange);
   }
 
   @override
@@ -152,17 +227,29 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     _moldController
       ..removeListener(_handleMoldTextChange)
       ..dispose();
-    _quantityController.dispose();
+    _quantityController
+      ..removeListener(_handleFieldChange)
+      ..dispose();
     _colorController
       ..removeListener(_handleColorTextChange)
       ..dispose();
-    _priceController.dispose();
+    _priceController
+      ..removeListener(_handleFieldChange)
+      ..dispose();
     _linkController
       ..removeListener(_handleLinkTextChange)
       ..dispose();
-    _failureReasonController.dispose();
-    _failureNotesController.dispose();
+    _failureReasonController
+      ..removeListener(_handleFieldChange)
+      ..dispose();
+    _failureNotesController
+      ..removeListener(_handleFieldChange)
+      ..dispose();
     super.dispose();
+  }
+
+  void _handleFieldChange() {
+    setState(() {});
   }
 
   void _handleMoldTextChange() {
@@ -370,9 +457,9 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
           if (!mounted) {
             return;
           }
-          Navigator.of(
-            context,
-          ).pop(PieceEditResult(piece: created.first, identityChanged: true));
+          await _popEditor(
+            PieceEditResult(piece: created.first, identityChanged: true),
+          );
           return;
         }
 
@@ -392,7 +479,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
         if (!mounted) {
           return;
         }
-        Navigator.of(context).pop(
+        await _popEditor(
           PieceEditResult(piece: saved.first, identityChanged: identityChanged),
         );
         return;
@@ -409,9 +496,9 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
         if (!mounted) {
           return;
         }
-        Navigator.of(
-          context,
-        ).pop(PieceEditResult(piece: created.first, identityChanged: true));
+        await _popEditor(
+          PieceEditResult(piece: created.first, identityChanged: true),
+        );
         return;
       }
 
@@ -430,9 +517,9 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       if (!mounted) {
         return;
       }
-      Navigator.of(
-        context,
-      ).pop(PieceEditResult(piece: saved, identityChanged: identityChanged));
+      await _popEditor(
+        PieceEditResult(piece: saved, identityChanged: identityChanged),
+      );
       return;
     }
 
@@ -449,7 +536,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     if (!mounted) {
       return;
     }
-    Navigator.of(context).pop(created);
+    await _popEditor(created);
   }
 
   Future<List<Piece>> _createPiecesFromEditedAttributes({
@@ -583,10 +670,14 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       return;
     }
 
-    Navigator.of(context).pop(const PieceEditResult(deleted: true));
+    await _popEditor(const PieceEditResult(deleted: true));
   }
 
   Future<void> _openSearchPiece(Piece piece) async {
+    if (!await _confirmLeaveIfNeeded() || !mounted) {
+      return;
+    }
+
     _headerSearchController.clear();
     setState(() {});
     await Navigator.of(context).push<void>(
@@ -603,12 +694,35 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
   }
 
   Future<void> _openNewPiece() async {
+    if (!await _confirmLeaveIfNeeded() || !mounted) {
+      return;
+    }
+
     _headerSearchController.clear();
     setState(() {});
     await Navigator.of(context).push<List<Piece>>(
       MaterialPageRoute(
         builder: (context) {
           return PieceEditorScreen.create(
+            repository: widget.repository,
+            currentUser: _activeUser,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openUserHistory() async {
+    if (!await _confirmLeaveIfNeeded() || !mounted) {
+      return;
+    }
+
+    _headerSearchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) {
+          return UserHistoryScreen(
             repository: widget.repository,
             currentUser: _activeUser,
           );
@@ -629,36 +743,46 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       context,
     ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            AppHeader(
-              screenName: screenName,
-              dateLabel: dateLabel,
-              searchController: _headerSearchController,
-              onSearchChanged: (_) => setState(() {}),
-              onBack: () => Navigator.of(context).maybePop(),
-            ),
-            GlobalPieceSearchResults(
-              repository: widget.repository,
-              searchController: _headerSearchController,
-              onOpenPiece: _openSearchPiece,
-              onCreatePiece: _openNewPiece,
-            ),
-            Expanded(
-              child: widget.isEditing
-                  ? _buildEditBody(context, piece!)
-                  : _buildCreateBody(context),
-            ),
-            _EditorActionBar(
-              isEditing: widget.isEditing,
-              isIdentityChange: _isIdentityChange,
-              canSubmit: _canSubmit,
-              onDelete: widget.isEditing ? _confirmDelete : null,
-              onSubmit: _submit,
-            ),
-          ],
+    return PopScope<Object?>(
+      canPop: _allowExit || !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          return;
+        }
+        _handleBlockedPop();
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              AppHeader(
+                screenName: screenName,
+                dateLabel: dateLabel,
+                searchController: _headerSearchController,
+                onSearchChanged: (_) => setState(() {}),
+                onBack: _maybePop,
+                onUserTap: _openUserHistory,
+              ),
+              GlobalPieceSearchResults(
+                repository: widget.repository,
+                searchController: _headerSearchController,
+                onOpenPiece: _openSearchPiece,
+                onCreatePiece: _openNewPiece,
+              ),
+              Expanded(
+                child: widget.isEditing
+                    ? _buildEditBody(context, piece!)
+                    : _buildCreateBody(context),
+              ),
+              _EditorActionBar(
+                isEditing: widget.isEditing,
+                isIdentityChange: _isIdentityChange,
+                canSubmit: _canSubmit,
+                onDelete: widget.isEditing ? _confirmDelete : null,
+                onSubmit: _submit,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1005,7 +1129,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     if (returnToPiece == true) {
       await _pickMold(created);
     } else {
-      Navigator.of(context).pop();
+      await _popEditor(null);
     }
   }
 
@@ -1161,11 +1285,26 @@ class _ColorEditor extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        _FilterChip(
+        InkWell(
           key: const Key('no-color-option'),
-          label: 'No color',
-          selected: selectedColors.isEmpty && query.isEmpty,
           onTap: onNoColor,
+          borderRadius: BorderRadius.circular(AppRadii.button),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Checkbox(
+                  value: selectedColors.isEmpty && query.isEmpty,
+                  onChanged: (_) => onNoColor(),
+                  activeColor: AppColors.primaryAccent,
+                  checkColor: AppColors.textPrimary,
+                ),
+                const SizedBox(width: 2),
+                Text('No color', style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 12),
         TextField(

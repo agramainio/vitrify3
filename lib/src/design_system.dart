@@ -230,91 +230,130 @@ class AppHeader extends StatelessWidget {
     return Container(
       color: AppColors.shellBackground,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Stack(
         children: [
-          if (onBack != null) ...[
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: IconButton(
-                key: const Key('header-back-button'),
-                padding: EdgeInsets.zero,
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: AppColors.iconColor,
-                  size: 20,
-                ),
-                onPressed: onBack,
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Text(
-              screenName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(dateLabel, style: AppTypography.topBarText),
-          const SizedBox(width: 10),
-          Expanded(
-            child: SizedBox(
-              height: 38,
-              child: TextField(
-                key: const Key('global-search-input'),
-                controller: searchController,
-                onChanged: onSearchChanged,
-                textInputAction: TextInputAction.search,
-                decoration: const InputDecoration(
-                  hintText: 'search',
-                  labelText: null,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
+          Padding(
+            padding: const EdgeInsets.only(right: 44),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (onBack != null) ...[
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: IconButton(
+                      key: const Key('header-back-button'),
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.iconColor,
+                        size: 20,
+                      ),
+                      onPressed: onBack,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(
+                    screenName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Text(dateLabel, style: AppTypography.topBarText),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 38,
+                    child: TextField(
+                      key: const Key('global-search-input'),
+                      controller: searchController,
+                      onChanged: onSearchChanged,
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        hintText: 'search',
+                        labelText: null,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (onMoreTap != null) ...[
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: IconButton(
+                      key: const Key('header-more-button'),
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.more_horiz,
+                        color: AppColors.iconColor,
+                        size: 22,
+                      ),
+                      onPressed: onMoreTap,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (onMoreTap != null) ...[
-            const SizedBox(width: 6),
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: IconButton(
-                key: const Key('header-more-button'),
-                padding: EdgeInsets.zero,
-                icon: const Icon(
-                  Icons.more_horiz,
-                  color: AppColors.iconColor,
-                  size: 22,
-                ),
-                onPressed: onMoreTap,
-              ),
-            ),
-          ],
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: IconButton(
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: PopupMenuButton<String>(
               key: const Key('header-user-button'),
-              padding: EdgeInsets.zero,
+              tooltip: 'User menu',
               icon: const Icon(
                 Icons.person_outline,
                 color: AppColors.iconColor,
                 size: 21,
               ),
-              onPressed: onUserTap,
+              onSelected: (value) => _handleUserMenuSelection(context, value),
+              itemBuilder: (context) {
+                return const [
+                  PopupMenuItem(value: 'history', child: Text('History')),
+                  PopupMenuItem(value: 'settings', child: Text('Settings')),
+                  PopupMenuItem(value: 'profile', child: Text('Profile')),
+                  PopupMenuItem(value: 'help', child: Text('Help')),
+                ];
+              },
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _handleUserMenuSelection(BuildContext context, String value) {
+    if (value == 'history') {
+      onUserTap?.call();
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${_menuLabel(value)} is not available yet.')),
+    );
+  }
+
+  String _menuLabel(String value) {
+    switch (value) {
+      case 'settings':
+        return 'Settings';
+      case 'profile':
+        return 'Profile';
+      case 'help':
+        return 'Help';
+      default:
+        return 'This item';
+    }
   }
 }
 
@@ -402,4 +441,30 @@ class AppCard extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<bool> confirmDiscardUnsavedChanges(BuildContext context) async {
+  final leave = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Do you want to leave?'),
+        content: const Text('Unsaved changes will be lost.'),
+        actions: [
+          TextButton(
+            key: const Key('stay-on-form-button'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            key: const Key('leave-form-button'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Yes'),
+          ),
+        ],
+      );
+    },
+  );
+
+  return leave == true;
 }

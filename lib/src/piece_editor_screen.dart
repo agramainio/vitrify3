@@ -7,7 +7,7 @@ import 'mold_editor_screen.dart';
 import 'models.dart';
 import 'piece_detail_screen.dart';
 import 'studio_repository.dart';
-import 'user_history_screen.dart';
+import 'user_page.dart';
 
 class PieceEditResult {
   const PieceEditResult({
@@ -712,7 +712,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     );
   }
 
-  Future<void> _openUserHistory() async {
+  Future<void> _openUserPage() async {
     if (!await _confirmLeaveIfNeeded() || !mounted) {
       return;
     }
@@ -722,7 +722,7 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) {
-          return UserHistoryScreen(
+          return UserPage(
             repository: widget.repository,
             currentUser: _activeUser,
           );
@@ -739,9 +739,6 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
               ? '${_selectedMold?.name ?? piece!.mold.name} - $_colorsLabel'
               : 'New piece'
         : 'Edit ${widget.batchPieces!.length} pieces';
-    final dateLabel = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
 
     return PopScope<Object?>(
       canPop: _allowExit || !_hasUnsavedChanges,
@@ -757,11 +754,10 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
             children: [
               AppHeader(
                 screenName: screenName,
-                dateLabel: dateLabel,
                 searchController: _headerSearchController,
                 onSearchChanged: (_) => setState(() {}),
                 onBack: _maybePop,
-                onUserTap: _openUserHistory,
+                onUserTap: _openUserPage,
               ),
               GlobalPieceSearchResults(
                 repository: widget.repository,

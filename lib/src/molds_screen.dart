@@ -7,7 +7,7 @@ import 'mold_editor_screen.dart';
 import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
-import 'user_history_screen.dart';
+import 'user_page.dart';
 
 class MoldsScreen extends StatefulWidget {
   const MoldsScreen({
@@ -69,13 +69,13 @@ class _MoldsScreenState extends State<MoldsScreen> {
     );
   }
 
-  Future<void> _openUserHistory() async {
+  Future<void> _openUserPage() async {
     _searchController.clear();
     setState(() {});
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) {
-          return UserHistoryScreen(
+          return UserPage(
             repository: widget.repository,
             currentUser: widget.currentUser,
           );
@@ -144,22 +144,16 @@ class _MoldsScreenState extends State<MoldsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
-    final query = _searchController.text.trim().toLowerCase();
-
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             AppHeader(
               screenName: 'Molds',
-              dateLabel: dateLabel,
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
-              onUserTap: _openUserHistory,
+              onUserTap: _openUserPage,
             ),
             GlobalPieceSearchResults(
               repository: widget.repository,
@@ -168,59 +162,89 @@ class _MoldsScreenState extends State<MoldsScreen> {
               onCreatePiece: _openNewPiece,
             ),
             Expanded(
-              child: AnimatedBuilder(
-                animation: widget.repository,
-                builder: (context, _) {
-                  final molds = widget.repository.allMolds().where((mold) {
-                    if (query.isEmpty) {
-                      return true;
-                    }
-                    final searchText = <String>[
-                      mold.name,
-                      mold.description ?? '',
-                      mold.size?.label ?? '',
-                    ].join(' ').toLowerCase();
-                    return searchText.contains(query);
-                  }).toList();
-
-                  return ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      AppSection(
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            key: const Key('create-mold-button'),
-                            onPressed: _createMold,
-                            child: const Text('Create mold'),
-                          ),
-                        ),
-                      ),
-                      AppSection(
-                        child: molds.isEmpty
-                            ? Text(
-                                'No molds found',
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              )
-                            : Column(
-                                children: [
-                                  for (final mold in molds)
-                                    _MoldCard(
-                                      mold: mold,
-                                      onEdit: () => _editMold(mold),
-                                      onDelete: () => _deleteMold(mold),
-                                    ),
-                                ],
-                              ),
-                      ),
-                    ],
-                  );
-                },
+              child: MoldsSection(
+                repository: widget.repository,
+                searchQuery: _searchController.text,
+                onCreateMold: _createMold,
+                onEditMold: _editMold,
+                onDeleteMold: _deleteMold,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class MoldsSection extends StatelessWidget {
+  const MoldsSection({
+    required this.repository,
+    required this.searchQuery,
+    required this.onCreateMold,
+    required this.onEditMold,
+    required this.onDeleteMold,
+    super.key,
+  });
+
+  final StudioRepository repository;
+  final String searchQuery;
+  final VoidCallback onCreateMold;
+  final ValueChanged<Mold> onEditMold;
+  final ValueChanged<Mold> onDeleteMold;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = searchQuery.trim().toLowerCase();
+
+    return AnimatedBuilder(
+      animation: repository,
+      builder: (context, _) {
+        final molds = repository.allMolds().where((mold) {
+          if (query.isEmpty) {
+            return true;
+          }
+          final searchText = <String>[
+            mold.name,
+            mold.description ?? '',
+            mold.size?.label ?? '',
+          ].join(' ').toLowerCase();
+          return searchText.contains(query);
+        }).toList();
+
+        return ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            AppSection(
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const Key('create-mold-button'),
+                  onPressed: onCreateMold,
+                  child: const Text('Create mold'),
+                ),
+              ),
+            ),
+            AppSection(
+              child: molds.isEmpty
+                  ? Text(
+                      'No molds found',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    )
+                  : Column(
+                      children: [
+                        for (final mold in molds)
+                          _MoldCard(
+                            mold: mold,
+                            onEdit: () => onEditMold(mold),
+                            onDelete: () => onDeleteMold(mold),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

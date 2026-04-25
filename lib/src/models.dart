@@ -110,12 +110,14 @@ class MoldImageReference {
     required this.sizeBytes,
     this.mimeType,
     this.bytes,
+    this.sourceUrl,
   });
 
   final String fileName;
   final String? mimeType;
   final int sizeBytes;
   final Uint8List? bytes;
+  final String? sourceUrl;
 }
 
 class StudioUser {
@@ -286,11 +288,14 @@ String buildPieceId({
   required List<StudioColor> colors,
   required String suffix,
 }) {
+  final colorSegments = colors.isEmpty
+      ? const ['no_color']
+      : colors
+            .map((color) => pieceIdSegment(color.name))
+            .where((segment) => segment.isNotEmpty);
   final segments = <String>[
     pieceIdSegment(mold.name),
-    ...colors
-        .map((color) => pieceIdSegment(color.name))
-        .where((segment) => segment.isNotEmpty),
+    ...colorSegments,
     suffix.trim().toUpperCase(),
   ].where((segment) => segment.isNotEmpty);
 

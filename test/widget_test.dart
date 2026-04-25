@@ -69,7 +69,10 @@ void main() {
       expect(grouped, hasLength(2));
       expect(grouped.first.creationGroupId, isNotNull);
       expect(grouped.first.creationGroupId, grouped.last.creationGroupId);
-      expect(grouped.first.id, matches(RegExp(r'^classiccup_[A-Z0-9]{4}$')));
+      expect(
+        grouped.first.id,
+        matches(RegExp(r'^classiccup_no_color_[A-Z0-9]{4}$')),
+      );
       expect(grouped.first.colors, isEmpty);
       expect(
         () => repository.createMold(name: 'Classic Cup'),
@@ -99,6 +102,10 @@ void main() {
 
       expect(find.byType(SelectionArea), findsOneWidget);
       expect(find.byKey(const Key('global-search-input')), findsOneWidget);
+      expect(find.byKey(const Key('header-more-button')), findsNothing);
+      expect(find.byKey(const Key('nav-molds')), findsOneWidget);
+      expect(find.byKey(const Key('nav-history')), findsOneWidget);
+      expect(find.byKey(const Key('fab-create')), findsOneWidget);
       expect(find.text('To fire'), findsOneWidget);
       expect(find.text('To glaze'), findsOneWidget);
       expect(find.text('Ready'), findsOneWidget);
@@ -111,8 +118,7 @@ void main() {
         findsNothing,
       );
 
-      await tester.tap(find.byKey(const Key('nav-create')));
-      await tester.pump();
+      await _openCreateMenu(tester);
 
       expect(find.byKey(const Key('new-piece-button')), findsOneWidget);
       expect(find.byKey(const Key('new-person-button')), findsOneWidget);
@@ -146,6 +152,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('upload-mold-image-button')), findsOneWidget);
       await tester.enterText(find.byKey(const Key('mold-price-input')), '55');
+      await tester.ensureVisible(find.byKey(const Key('mold-image-url-input')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('mold-image-url-input')),
+        'https://example.com/tall-vase.jpg',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
       await tester.tap(find.byKey(const Key('save-mold-button')));
       await tester.pumpAndSettle();
 
@@ -165,10 +179,31 @@ void main() {
       expect(mold?.defaultPrice, 55);
       expect(mold?.description, 'Tall thrown form');
       expect(mold?.size, MoldSize.small);
-      expect(mold?.imageReference, isNull);
+      expect(
+        mold?.imageReference?.sourceUrl,
+        'https://example.com/tall-vase.jpg',
+      );
       expect(mold?.id, matches(RegExp(r'^mold_[0-9]+_[A-Z0-9]{4}$')));
     },
   );
+
+  testWidgets('user icon opens a full user page with placeholder sections', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    _configureMobileViewport(tester);
+
+    await _pumpVitrifyApp(tester, repository);
+    await tester.tap(find.byKey(const Key('header-user-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text(_testUser.name), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Configuration'), findsOneWidget);
+    expect(find.text('Help'), findsOneWidget);
+    expect(find.text('About'), findsOneWidget);
+  });
 
   testWidgets('first use captures a local user before the bench', (
     WidgetTester tester,
@@ -222,8 +257,7 @@ void main() {
 
     await _pumpVitrifyApp(tester, repository);
 
-    await tester.tap(find.byKey(const Key('nav-create')));
-    await tester.pump();
+    await _openCreateMenu(tester);
     await tester.tap(find.byKey(const Key('new-piece-button')));
     await tester.pumpAndSettle();
 
@@ -245,7 +279,7 @@ void main() {
     await tester.tap(find.byKey(const Key('leave-form-button')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('nav-create')), findsOneWidget);
+    expect(find.byKey(const Key('fab-create')), findsOneWidget);
   });
 
   testWidgets('molds page exposes create and edit uses Edit action label', (
@@ -256,9 +290,7 @@ void main() {
     _configureMobileViewport(tester);
 
     await _pumpVitrifyApp(tester, repository);
-    await tester.tap(find.byKey(const Key('header-more-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('more-molds-button')));
+    await tester.tap(find.byKey(const Key('nav-molds')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('create-mold-button')), findsOneWidget);
@@ -278,8 +310,7 @@ void main() {
 
     await _pumpVitrifyApp(tester, repository);
 
-    await tester.tap(find.byKey(const Key('nav-create')));
-    await tester.pump();
+    await _openCreateMenu(tester);
     await tester.tap(find.byKey(const Key('new-piece-button')));
     await tester.pumpAndSettle();
 
@@ -376,8 +407,7 @@ void main() {
 
     await _pumpVitrifyApp(tester, repository);
 
-    await tester.tap(find.byKey(const Key('nav-create')));
-    await tester.pump();
+    await _openCreateMenu(tester);
     await tester.tap(find.byKey(const Key('new-piece-button')));
     await tester.pumpAndSettle();
 
@@ -415,8 +445,7 @@ void main() {
 
     await _pumpVitrifyApp(tester, repository);
 
-    await tester.tap(find.byKey(const Key('nav-create')));
-    await tester.pump();
+    await _openCreateMenu(tester);
     await tester.tap(find.byKey(const Key('new-piece-button')));
     await tester.pumpAndSettle();
 
@@ -438,9 +467,9 @@ void main() {
 
     final created = repository.recentPieces(limit: 1).single;
     expect(created.colors, isEmpty);
-    expect(created.id, matches(RegExp(r'^classiccup_[A-Z0-9]{4}$')));
+    expect(created.id, matches(RegExp(r'^classiccup_no_color_[A-Z0-9]{4}$')));
 
-    await tester.tap(find.byKey(const Key('nav-all-pieces')));
+    await tester.tap(find.byKey(const Key('nav-pieces')));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('global-search-input')),
@@ -476,13 +505,10 @@ void main() {
     _configureMobileViewport(tester);
 
     await _pumpVitrifyApp(tester, repository);
-    await tester.tap(find.byKey(const Key('header-user-button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Settings'), findsOneWidget);
-    await tester.tap(find.text('History').last);
+    await tester.tap(find.byKey(const Key('nav-history')));
     await tester.pumpAndSettle();
 
-    expect(find.text(_testUser.name), findsOneWidget);
+    expect(find.text('History'), findsWidgets);
     expect(find.byKey(Key('user-history-${failed.id}')), findsOneWidget);
     expect(find.text('To fire - Stock - Failed'), findsOneWidget);
   });
@@ -504,7 +530,7 @@ void main() {
       _configureMobileViewport(tester);
 
       await _pumpVitrifyApp(tester, repository);
-      await tester.tap(find.byKey(const Key('nav-all-pieces')));
+      await tester.tap(find.byKey(const Key('nav-pieces')));
       await tester.pumpAndSettle();
 
       expect(find.text('Classic Cup — Bone White (×3)'), findsOneWidget);
@@ -529,7 +555,7 @@ void main() {
       _configureMobileViewport(tester);
 
       await _pumpVitrifyApp(tester, repository);
-      await tester.tap(find.byKey(const Key('nav-all-pieces')));
+      await tester.tap(find.byKey(const Key('nav-pieces')));
       await tester.pumpAndSettle();
 
       expect(find.text('ALL PIECES'), findsNothing);
@@ -721,6 +747,11 @@ Future<void> _pumpVitrifyApp(
     ),
   );
   await tester.pump();
+}
+
+Future<void> _openCreateMenu(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('fab-create')));
+  await tester.pumpAndSettle();
 }
 
 void _configureMobileViewport(WidgetTester tester) {

@@ -208,21 +208,17 @@ class AppTheme {
 class AppHeader extends StatelessWidget {
   const AppHeader({
     required this.screenName,
-    required this.dateLabel,
     required this.searchController,
     this.onSearchChanged,
     this.onBack,
-    this.onMoreTap,
     this.onUserTap,
     super.key,
   });
 
   final String screenName;
-  final String dateLabel;
   final TextEditingController searchController;
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onBack;
-  final VoidCallback? onMoreTap;
   final VoidCallback? onUserTap;
 
   @override
@@ -262,8 +258,6 @@ class AppHeader extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(dateLabel, style: AppTypography.topBarText),
                 const SizedBox(width: 10),
                 Expanded(
                   child: SizedBox(
@@ -284,23 +278,6 @@ class AppHeader extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (onMoreTap != null) ...[
-                  const SizedBox(width: 6),
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: IconButton(
-                      key: const Key('header-more-button'),
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        Icons.more_horiz,
-                        color: AppColors.iconColor,
-                        size: 22,
-                      ),
-                      onPressed: onMoreTap,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -308,52 +285,19 @@ class AppHeader extends StatelessWidget {
             top: 0,
             right: 0,
             bottom: 0,
-            child: PopupMenuButton<String>(
+            child: IconButton(
               key: const Key('header-user-button'),
-              tooltip: 'User menu',
               icon: const Icon(
                 Icons.person_outline,
                 color: AppColors.iconColor,
                 size: 21,
               ),
-              onSelected: (value) => _handleUserMenuSelection(context, value),
-              itemBuilder: (context) {
-                return const [
-                  PopupMenuItem(value: 'history', child: Text('History')),
-                  PopupMenuItem(value: 'settings', child: Text('Settings')),
-                  PopupMenuItem(value: 'profile', child: Text('Profile')),
-                  PopupMenuItem(value: 'help', child: Text('Help')),
-                ];
-              },
+              onPressed: onUserTap,
             ),
           ),
         ],
       ),
     );
-  }
-
-  void _handleUserMenuSelection(BuildContext context, String value) {
-    if (value == 'history') {
-      onUserTap?.call();
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${_menuLabel(value)} is not available yet.')),
-    );
-  }
-
-  String _menuLabel(String value) {
-    switch (value) {
-      case 'settings':
-        return 'Settings';
-      case 'profile':
-        return 'Profile';
-      case 'help':
-        return 'Help';
-      default:
-        return 'This item';
-    }
   }
 }
 

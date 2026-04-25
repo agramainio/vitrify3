@@ -9,6 +9,7 @@ import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
 import 'user_history_screen.dart';
+import 'user_page.dart';
 
 class BenchScreen extends StatefulWidget {
   const BenchScreen({
@@ -27,7 +28,6 @@ class BenchScreen extends StatefulWidget {
 class _BenchScreenState extends State<BenchScreen> {
   int _selectedSection = 0;
   bool _showCreateActions = false;
-  bool _showMoreActions = false;
   PieceStage? _piecesStageFilter;
   PieceDestination? _piecesDestinationFilter;
   late final TextEditingController _globalSearchController;
@@ -47,7 +47,6 @@ class _BenchScreenState extends State<BenchScreen> {
   Future<void> _openNewPiece() async {
     setState(() {
       _showCreateActions = false;
-      _showMoreActions = false;
       _globalSearchController.clear();
     });
 
@@ -64,7 +63,6 @@ class _BenchScreenState extends State<BenchScreen> {
   Future<void> _openNewMold() async {
     setState(() {
       _showCreateActions = false;
-      _showMoreActions = false;
       _globalSearchController.clear();
     });
 
@@ -78,16 +76,15 @@ class _BenchScreenState extends State<BenchScreen> {
     );
   }
 
-  Future<void> _openUserHistory() async {
+  Future<void> _openUserPage() async {
     setState(() {
       _showCreateActions = false;
-      _showMoreActions = false;
       _globalSearchController.clear();
     });
 
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (context) => UserHistoryScreen(
+        builder: (context) => UserPage(
           repository: widget.repository,
           currentUser: widget.currentUser,
         ),
@@ -98,7 +95,6 @@ class _BenchScreenState extends State<BenchScreen> {
   Future<void> _openSearchPiece(Piece piece) async {
     setState(() {
       _showCreateActions = false;
-      _showMoreActions = false;
     });
 
     await Navigator.of(context).push<void>(
@@ -116,7 +112,6 @@ class _BenchScreenState extends State<BenchScreen> {
     setState(() {
       _selectedSection = 1;
       _showCreateActions = false;
-      _showMoreActions = false;
       _globalSearchController.clear();
       _piecesStageFilter = stage;
       _piecesDestinationFilter = null;
@@ -147,71 +142,37 @@ class _BenchScreenState extends State<BenchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateUtils.dateOnly(DateTime.now());
-    final dateLabel = MaterialLocalizations.of(context).formatMediumDate(today);
-
     return AnimatedBuilder(
       animation: widget.repository,
       builder: (context, _) {
         return Scaffold(
+          floatingActionButton: _CreateFabCluster(
+            expanded: _showCreateActions,
+            onToggle: () {
+              setState(() => _showCreateActions = !_showCreateActions);
+            },
+            onNewPiece: _openNewPiece,
+            onNewMold: _openNewMold,
+          ),
           body: SafeArea(
             child: Column(
               children: [
                 AppHeader(
                   screenName: _screenName,
-                  dateLabel: dateLabel,
                   searchController: _globalSearchController,
                   onSearchChanged: (_) => setState(() {}),
-                  onMoreTap: () {
-                    setState(() {
-                      _showMoreActions = !_showMoreActions;
-                      _showCreateActions = false;
-                    });
-                  },
-                  onUserTap: _openUserHistory,
+                  onUserTap: _openUserPage,
                 ),
                 _buildSearchSuggestions(),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(child: _buildSectionBody()),
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 12,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 120),
-                          child: _showCreateActions
-                              ? _CreateActionMenu(
-                                  key: const Key('create-action-menu'),
-                                  onNewPiece: _openNewPiece,
-                                  onNewMold: _openNewMold,
-                                )
-                              : _showMoreActions
-                              ? _MoreActionMenu(
-                                  key: const Key('more-action-menu'),
-                                  onMolds: _openMoldsPage,
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                Expanded(child: _buildSectionBody()),
                 const _BottomBenchNavDivider(),
                 _BottomBenchNav(
                   currentIndex: _selectedSection,
                   onSelected: (index) {
                     setState(() {
-                      if (index == 2) {
-                        _showCreateActions = !_showCreateActions;
-                        _showMoreActions = false;
-                      } else {
-                        _selectedSection = index;
-                        _showCreateActions = false;
-                        _showMoreActions = false;
-                        _globalSearchController.clear();
-                      }
+                      _selectedSection = index;
+                      _showCreateActions = false;
+                      _globalSearchController.clear();
                     });
                   },
                 ),
@@ -229,9 +190,13 @@ class _BenchScreenState extends State<BenchScreen> {
         return 'Bench';
       case 1:
         return 'All pieces';
+      case 2:
+        return 'Molds';
       case 3:
-        return 'Batches';
+        return 'History';
       case 4:
+        return 'Batches';
+      case 5:
         return 'Jobs';
       default:
         return 'Bench';
@@ -262,6 +227,25 @@ class _BenchScreenState extends State<BenchScreen> {
         currentUser: widget.currentUser,
         onFiltersChanged: _handlePiecesFiltersChanged,
         onClearFilters: _clearPiecesFilters,
+      );
+    }
+
+    if (_selectedSection == 2) {
+      return MoldsSection(
+        repository: widget.repository,
+        searchQuery: _globalSearchController.text,
+        onCreateMold: _openNewMold,
+        onEditMold: _editMold,
+        onDeleteMold: _deleteMold,
+      );
+    }
+
+    if (_selectedSection == 3) {
+      return UserHistorySection(
+        repository: widget.repository,
+        currentUser: widget.currentUser,
+        searchQuery: _globalSearchController.text,
+        onOpenPiece: _openSearchPiece,
       );
     }
 
@@ -321,21 +305,45 @@ class _BenchScreenState extends State<BenchScreen> {
     );
   }
 
-  Future<void> _openMoldsPage() async {
-    setState(() {
-      _showCreateActions = false;
-      _showMoreActions = false;
-      _globalSearchController.clear();
-    });
-
-    await Navigator.of(context).push<void>(
+  Future<void> _editMold(Mold mold) async {
+    setState(() => _showCreateActions = false);
+    await Navigator.of(context).push<Mold>(
       MaterialPageRoute(
-        builder: (context) => MoldsScreen(
+        builder: (context) => MoldEditorScreen.edit(
           repository: widget.repository,
+          mold: mold,
           currentUser: widget.currentUser,
         ),
       ),
     );
+  }
+
+  Future<void> _deleteMold(Mold mold) async {
+    setState(() => _showCreateActions = false);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete mold'),
+          content: Text('Delete ${mold.name}? Existing pieces keep history.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const Key('confirm-delete-mold-button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await widget.repository.deleteMold(mold.id);
+    }
   }
 }
 
@@ -476,8 +484,9 @@ class _BottomBenchNav extends StatelessWidget {
   Widget build(BuildContext context) {
     const items = <({IconData icon, String label})>[
       (icon: Icons.home_outlined, label: 'Bench'),
-      (icon: Icons.dehaze, label: 'All pieces'),
-      (icon: Icons.add, label: ''),
+      (icon: Icons.dehaze, label: 'Pieces'),
+      (icon: Icons.category_outlined, label: 'Molds'),
+      (icon: Icons.history, label: 'History'),
       (icon: Icons.local_fire_department_outlined, label: 'Batches'),
       (icon: Icons.assignment_outlined, label: 'Jobs'),
     ];
@@ -490,66 +499,49 @@ class _BottomBenchNav extends StatelessWidget {
       child: Row(
         children: [
           for (var index = 0; index < items.length; index++) ...[
-            if (index == 2)
-              SizedBox(
-                width: 58,
-                child: IconButton(
-                  key: const Key('nav-create'),
-                  onPressed: () => onSelected(index),
-                  style: IconButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.button),
-                    ),
-                  ),
-                  icon: const Icon(
-                    Icons.add,
-                    color: AppColors.iconColor,
-                    size: 30,
-                  ),
+            Expanded(
+              child: InkWell(
+                key: Key(
+                  'nav-${items[index].label.toLowerCase().replaceAll(' ', '-')}',
                 ),
-              )
-            else
-              Expanded(
-                child: InkWell(
-                  key: Key(
-                    'nav-${items[index].label.toLowerCase().replaceAll(' ', '-')}',
-                  ),
-                  onTap: () => onSelected(index),
-                  borderRadius: BorderRadius.circular(AppRadii.button),
-                  child: Container(
-                    padding: const EdgeInsets.only(top: 6, bottom: 7),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: currentIndex == index
-                              ? AppColors.iconColor
-                              : AppColors.shellBackground,
-                          width: 2,
-                        ),
+                onTap: () => onSelected(index),
+                borderRadius: BorderRadius.circular(AppRadii.button),
+                child: Container(
+                  padding: const EdgeInsets.only(top: 6, bottom: 7),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: currentIndex == index
+                            ? AppColors.iconColor
+                            : AppColors.shellBackground,
+                        width: 2,
                       ),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          items[index].icon,
-                          size: 25,
-                          color: currentIndex == index
-                              ? AppColors.iconColor
-                              : AppColors.textPrimary,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        items[index].icon,
+                        size: 23,
+                        color: currentIndex == index
+                            ? AppColors.iconColor
+                            : AppColors.textPrimary,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        items[index].label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontSize: 11,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          items[index].label,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
+            ),
           ],
         ],
       ),
@@ -564,7 +556,7 @@ class _PlaceholderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = index == 3 ? 'Batches' : 'Jobs';
+    final label = index == 4 ? 'Batches' : 'Jobs';
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -574,6 +566,51 @@ class _PlaceholderSection extends StatelessWidget {
             'No ${label.toLowerCase()} yet.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CreateFabCluster extends StatelessWidget {
+  const _CreateFabCluster({
+    required this.expanded,
+    required this.onToggle,
+    required this.onNewPiece,
+    required this.onNewMold,
+  });
+
+  final bool expanded;
+  final VoidCallback onToggle;
+  final VoidCallback onNewPiece;
+  final VoidCallback onNewMold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 120),
+          child: expanded
+              ? _CreateActionMenu(
+                  key: const Key('create-action-menu'),
+                  onNewPiece: onNewPiece,
+                  onNewMold: onNewMold,
+                )
+              : const SizedBox.shrink(),
+        ),
+        const SizedBox(height: AppSpacing.related),
+        FloatingActionButton(
+          key: const Key('fab-create'),
+          onPressed: onToggle,
+          backgroundColor: AppColors.primaryAccent,
+          foregroundColor: AppColors.textPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.button),
+          ),
+          child: const Icon(Icons.add, color: AppColors.iconColor),
         ),
       ],
     );
@@ -592,79 +629,42 @@ class _CreateActionMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Material(
-        color: AppColors.appBackground,
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(color: AppColors.textPrimary),
-          borderRadius: BorderRadius.circular(AppRadii.modal),
-        ),
-        child: SizedBox(
-          width: 280,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CreateMenuRow(
-                key: const Key('new-piece-button'),
-                label: 'New piece',
-                icon: Icons.add,
-                onTap: onNewPiece,
-              ),
-              _CreateMenuRow(
-                key: const Key('new-person-button'),
-                label: 'New person',
-                icon: Icons.person_add_alt_1_outlined,
-                onTap: () {},
-              ),
-              _CreateMenuRow(
-                key: const Key('new-firing-batch-button'),
-                label: 'New firing batch',
-                icon: Icons.local_fire_department_outlined,
-                onTap: () {},
-              ),
-              _CreateMenuRow(
-                key: const Key('new-mold-button'),
-                label: 'New mold',
-                icon: Icons.category_outlined,
-                onTap: onNewMold,
-              ),
-            ],
-          ),
-        ),
+    return Material(
+      color: AppColors.appBackground,
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: AppColors.textPrimary),
+        borderRadius: BorderRadius.circular(AppRadii.modal),
       ),
-    );
-  }
-}
-
-class _MoreActionMenu extends StatelessWidget {
-  const _MoreActionMenu({required this.onMolds, super.key});
-
-  final VoidCallback onMolds;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Material(
-        color: AppColors.appBackground,
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(color: AppColors.textPrimary),
-          borderRadius: BorderRadius.circular(AppRadii.modal),
-        ),
-        child: SizedBox(
-          width: 240,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CreateMenuRow(
-                key: const Key('more-molds-button'),
-                label: 'Molds',
-                icon: Icons.category_outlined,
-                onTap: onMolds,
-              ),
-            ],
-          ),
+      child: SizedBox(
+        width: 260,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _CreateMenuRow(
+              key: const Key('new-piece-button'),
+              label: 'New piece',
+              icon: Icons.add,
+              onTap: onNewPiece,
+            ),
+            _CreateMenuRow(
+              key: const Key('new-person-button'),
+              label: 'New person',
+              icon: Icons.person_add_alt_1_outlined,
+              onTap: () {},
+            ),
+            _CreateMenuRow(
+              key: const Key('new-firing-batch-button'),
+              label: 'New firing batch',
+              icon: Icons.local_fire_department_outlined,
+              onTap: () {},
+            ),
+            _CreateMenuRow(
+              key: const Key('new-mold-button'),
+              label: 'New mold',
+              icon: Icons.category_outlined,
+              onTap: onNewMold,
+            ),
+          ],
         ),
       ),
     );

@@ -7,7 +7,7 @@ import 'models.dart';
 import 'mold_image_panel.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
-import 'user_history_screen.dart';
+import 'user_page.dart';
 
 class PieceDetailScreen extends StatefulWidget {
   const PieceDetailScreen({
@@ -135,13 +135,39 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
     });
   }
 
-  Future<void> _openUserHistory() async {
+  Future<void> _setMoldImageUrl(String value) async {
+    final url = value.trim();
+    if (url.isEmpty) {
+      return;
+    }
+
+    final updatedMold = await widget.repository.updateMold(
+      _piece.mold.copyWith(
+        imageReference: MoldImageReference(
+          fileName: url,
+          mimeType: null,
+          sizeBytes: 0,
+          sourceUrl: url,
+        ),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _piece = _piece.copyWith(mold: updatedMold);
+    });
+  }
+
+  Future<void> _openUserPage() async {
     _headerSearchController.clear();
     setState(() {});
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) {
-          return UserHistoryScreen(
+          return UserPage(
             repository: widget.repository,
             currentUser: widget.currentUser,
           );
@@ -183,21 +209,16 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
-
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             AppHeader(
               screenName: _piece.mold.name,
-              dateLabel: dateLabel,
               searchController: _headerSearchController,
               onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
-              onUserTap: _openUserHistory,
+              onUserTap: _openUserPage,
             ),
             GlobalPieceSearchResults(
               repository: widget.repository,
@@ -258,6 +279,7 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
                     child: MoldImagePanel(
                       imageReference: _piece.mold.imageReference,
                       onUpload: _pickMoldImage,
+                      onUrlSubmitted: _setMoldImageUrl,
                     ),
                   ),
                 ],

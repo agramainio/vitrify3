@@ -6,6 +6,7 @@ import 'models.dart';
 import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
+import 'user_page.dart';
 
 class UserHistoryScreen extends StatefulWidget {
   const UserHistoryScreen({
@@ -67,23 +68,31 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     );
   }
 
+  Future<void> _openUserPage() async {
+    _searchController.clear();
+    setState(() {});
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => UserPage(
+          repository: widget.repository,
+          currentUser: widget.currentUser,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateLabel = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
-
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             AppHeader(
               screenName: widget.currentUser.name,
-              dateLabel: dateLabel,
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
               onBack: () => Navigator.of(context).maybePop(),
-              onUserTap: () {},
+              onUserTap: _openUserPage,
             ),
             GlobalPieceSearchResults(
               repository: widget.repository,
@@ -92,46 +101,87 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               onCreatePiece: _openNewPiece,
             ),
             Expanded(
-              child: AnimatedBuilder(
-                animation: widget.repository,
-                builder: (context, _) {
-                  final pieces = widget.repository
-                      .allPieces()
-                      .where(
-                        (piece) =>
-                            piece.createdByUserId == widget.currentUser.id,
-                      )
-                      .toList();
-
-                  return ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      AppSection(
-                        title: 'History',
-                        child: pieces.isEmpty
-                            ? Text(
-                                'No pieces yet.',
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              )
-                            : Column(
-                                children: [
-                                  for (final piece in pieces)
-                                    _UserHistoryRow(
-                                      key: Key('user-history-${piece.id}'),
-                                      piece: piece,
-                                      onTap: () => _openPiece(piece),
-                                    ),
-                                ],
-                              ),
-                      ),
-                    ],
-                  );
-                },
+              child: UserHistorySection(
+                repository: widget.repository,
+                currentUser: widget.currentUser,
+                searchQuery: _searchController.text,
+                onOpenPiece: _openPiece,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class UserHistorySection extends StatelessWidget {
+  const UserHistorySection({
+    required this.repository,
+    required this.currentUser,
+    required this.searchQuery,
+    required this.onOpenPiece,
+    super.key,
+  });
+
+  final StudioRepository repository;
+  final StudioUser currentUser;
+  final String searchQuery;
+  final ValueChanged<Piece> onOpenPiece;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = searchQuery.trim().toLowerCase();
+
+    return AnimatedBuilder(
+      animation: repository,
+      builder: (context, _) {
+        final pieces = repository.allPieces().where((piece) {
+          if (piece.createdByUserId != currentUser.id) {
+            return false;
+          }
+
+          if (query.isEmpty) {
+            return true;
+          }
+
+          final searchText = <String>[
+            piece.id,
+            piece.mold.name,
+            piece.stage.label,
+            piece.destination.label,
+            piece.linkedRecord?.label ?? '',
+            ...piece.colors.map((color) => color.name),
+            if (piece.colors.isEmpty) 'No color',
+            if (piece.failed) 'Failed',
+          ].join(' ').toLowerCase();
+          return searchText.contains(query);
+        }).toList();
+
+        return ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            AppSection(
+              title: 'History',
+              child: pieces.isEmpty
+                  ? Text(
+                      'No pieces yet.',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    )
+                  : Column(
+                      children: [
+                        for (final piece in pieces)
+                          _UserHistoryRow(
+                            key: Key('user-history-${piece.id}'),
+                            piece: piece,
+                            onTap: () => onOpenPiece(piece),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

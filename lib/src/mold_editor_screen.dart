@@ -9,7 +9,7 @@ import 'mold_image_panel.dart';
 import 'piece_detail_screen.dart';
 import 'piece_editor_screen.dart';
 import 'studio_repository.dart';
-import 'user_history_screen.dart';
+import 'user_page.dart';
 
 class MoldEditorScreen extends StatefulWidget {
   const MoldEditorScreen({
@@ -198,6 +198,22 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
     });
   }
 
+  void _setImageUrl(String value) {
+    final url = value.trim();
+    if (url.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _selectedImage = MoldImageReference(
+        fileName: url,
+        mimeType: null,
+        sizeBytes: 0,
+        sourceUrl: url,
+      );
+    });
+  }
+
   Future<void> _confirm() async {
     if (!_canReview) {
       setState(() => _showSummary = false);
@@ -283,7 +299,7 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
     );
   }
 
-  Future<void> _openUserHistory() async {
+  Future<void> _openUserPage() async {
     if (!await _confirmLeaveIfNeeded() || !mounted) {
       return;
     }
@@ -293,7 +309,7 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) {
-          return UserHistoryScreen(
+          return UserPage(
             repository: widget.repository,
             currentUser: widget.currentUser,
           );
@@ -304,10 +320,6 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(DateUtils.dateOnly(DateTime.now()));
-
     return PopScope<Object?>(
       canPop: _allowExit || !_hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, _) {
@@ -322,11 +334,10 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
             children: [
               AppHeader(
                 screenName: widget.isEditing ? 'Edit mold' : 'New mold',
-                dateLabel: dateLabel,
                 searchController: _headerSearchController,
                 onSearchChanged: (_) => setState(() {}),
                 onBack: _maybePop,
-                onUserTap: _openUserHistory,
+                onUserTap: _openUserPage,
               ),
               GlobalPieceSearchResults(
                 repository: widget.repository,
@@ -412,6 +423,7 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
               MoldImagePanel(
                 imageReference: _selectedImage,
                 onUpload: _pickImage,
+                onUrlSubmitted: _setImageUrl,
               ),
             ],
           ),

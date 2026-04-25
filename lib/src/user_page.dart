@@ -86,11 +86,19 @@ class _UserPageState extends State<UserPage> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: const [
-                  _UserPageSection(title: 'Profile'),
-                  _UserPageSection(title: 'Settings'),
-                  _UserPageSection(title: 'Configuration'),
-                  _UserPageSection(title: 'Help'),
-                  _UserPageSection(title: 'About'),
+                  AppSection(
+                    child: AppResponsiveGrid(
+                      minItemWidth: 300,
+                      maxColumns: 2,
+                      children: [
+                        _UserPageSection(title: 'Profile'),
+                        _UserPageSection(title: 'Settings'),
+                        _UserPageSection(title: 'Configuration'),
+                        _UserPageSection(title: 'Help'),
+                        _UserPageSection(title: 'About'),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -108,7 +116,8 @@ class _UserPageSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSection(
+    return AppCard(
+      margin: EdgeInsets.zero,
       child: Row(
         children: [
           Expanded(

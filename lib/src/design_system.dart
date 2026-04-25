@@ -24,6 +24,162 @@ class AppSpacing {
 
   static const double gutter = 16;
   static const double related = 8;
+  static const double desktopGutter = 24;
+}
+
+enum AppBreakpoint { mobile, tablet, desktop }
+
+class AppResponsive {
+  const AppResponsive._();
+
+  static const double tabletMinWidth = 600;
+  static const double desktopMinWidth = 1024;
+  static const double contentMaxWidth = 1180;
+  static const double readingMaxWidth = 760;
+  static const double narrowMaxWidth = 520;
+
+  static AppBreakpoint breakpointOf(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width >= desktopMinWidth) {
+      return AppBreakpoint.desktop;
+    }
+    if (width >= tabletMinWidth) {
+      return AppBreakpoint.tablet;
+    }
+    return AppBreakpoint.mobile;
+  }
+
+  static bool isMobile(BuildContext context) {
+    return breakpointOf(context) == AppBreakpoint.mobile;
+  }
+
+  static bool isTablet(BuildContext context) {
+    return breakpointOf(context) == AppBreakpoint.tablet;
+  }
+
+  static bool isDesktop(BuildContext context) {
+    return breakpointOf(context) == AppBreakpoint.desktop;
+  }
+
+  static double horizontalPadding(BuildContext context) {
+    return isDesktop(context) ? AppSpacing.desktopGutter : AppSpacing.gutter;
+  }
+
+  static double verticalPadding(BuildContext context) {
+    return isDesktop(context) ? 18 : AppSpacing.gutter;
+  }
+
+  static double cardGap(BuildContext context) {
+    return isDesktop(context) ? 12 : AppSpacing.related;
+  }
+}
+
+class AppResponsiveContent extends StatelessWidget {
+  const AppResponsiveContent({
+    required this.child,
+    this.maxWidth = AppResponsive.contentMaxWidth,
+    this.alignment = Alignment.topCenter,
+    super.key,
+  });
+
+  final Widget child;
+  final double maxWidth;
+  final AlignmentGeometry alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: SizedBox(width: double.infinity, child: child),
+      ),
+    );
+  }
+}
+
+class AppResponsiveGrid extends StatelessWidget {
+  const AppResponsiveGrid({
+    required this.children,
+    this.minItemWidth = 320,
+    this.maxColumns = 3,
+    this.gap,
+    super.key,
+  });
+
+  final List<Widget> children;
+  final double minItemWidth;
+  final int maxColumns;
+  final double? gap;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedGap = gap ?? AppResponsive.cardGap(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final rawColumns = (width / minItemWidth).floor();
+        final columns = rawColumns.clamp(1, maxColumns).toInt();
+        final itemWidth = columns == 1
+            ? width
+            : (width - (resolvedGap * (columns - 1))) / columns;
+
+        return Wrap(
+          spacing: resolvedGap,
+          runSpacing: resolvedGap,
+          children: [
+            for (final child in children)
+              SizedBox(width: itemWidth, child: child),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class AppResponsiveSplit extends StatelessWidget {
+  const AppResponsiveSplit({
+    required this.primary,
+    required this.secondary,
+    this.gap,
+    this.secondaryWidth = 360,
+    super.key,
+  });
+
+  final Widget primary;
+  final Widget secondary;
+  final double? gap;
+  final double secondaryWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedGap = gap ?? AppSpacing.gutter;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!AppResponsive.isDesktop(context) || constraints.maxWidth < 820) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              primary,
+              SizedBox(height: resolvedGap),
+              secondary,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: primary),
+            SizedBox(width: resolvedGap),
+            SizedBox(width: secondaryWidth, child: secondary),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class AppTypography {
@@ -225,60 +381,67 @@ class AppHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.shellBackground,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        10,
+        AppResponsive.horizontalPadding(context),
+        10,
+      ),
       child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 44),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (onBack != null) ...[
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: IconButton(
-                      key: const Key('header-back-button'),
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.iconColor,
-                        size: 20,
+          AppResponsiveContent(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 44),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (onBack != null) ...[
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: IconButton(
+                        key: const Key('header-back-button'),
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: AppColors.iconColor,
+                          size: 20,
+                        ),
+                        onPressed: onBack,
                       ),
-                      onPressed: onBack,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Text(
+                      screenName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                ],
-                Flexible(
-                  child: Text(
-                    screenName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SizedBox(
-                    height: 38,
-                    child: TextField(
-                      key: const Key('global-search-input'),
-                      controller: searchController,
-                      onChanged: onSearchChanged,
-                      textInputAction: TextInputAction.search,
-                      decoration: const InputDecoration(
-                        hintText: 'search',
-                        labelText: null,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 38,
+                      child: TextField(
+                        key: const Key('global-search-input'),
+                        controller: searchController,
+                        onChanged: onSearchChanged,
+                        textInputAction: TextInputAction.search,
+                        decoration: const InputDecoration(
+                          hintText: 'search',
+                          labelText: null,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           Positioned(
@@ -310,25 +473,85 @@ class AppSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.gutter,
-        AppSpacing.gutter,
-        AppSpacing.gutter,
-        AppSpacing.gutter,
-      ),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
       ),
-      child: Column(
+      child: AppResponsiveContent(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppResponsive.horizontalPadding(context),
+            AppResponsive.verticalPadding(context),
+            AppResponsive.horizontalPadding(context),
+            AppResponsive.verticalPadding(context),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null) ...[
+                Text(title!.toUpperCase(), style: AppTypography.sectionLabel),
+                const SizedBox(height: 12),
+              ],
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppActionBarShell extends StatelessWidget {
+  const AppActionBarShell({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.shellBackground,
+      padding: EdgeInsets.fromLTRB(
+        AppResponsive.horizontalPadding(context),
+        12,
+        AppResponsive.horizontalPadding(context),
+        16,
+      ),
+      child: AppResponsiveContent(
+        maxWidth: AppResponsive.readingMaxWidth,
+        child: child,
+      ),
+    );
+  }
+}
+
+class AppResponsiveFormGrid extends StatelessWidget {
+  const AppResponsiveFormGrid({
+    required this.children,
+    this.desktopColumns = 2,
+    super.key,
+  });
+
+  final List<Widget> children;
+  final int desktopColumns;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!AppResponsive.isDesktop(context)) {
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (title != null) ...[
-            Text(title!.toUpperCase(), style: AppTypography.sectionLabel),
-            const SizedBox(height: 12),
+          for (var index = 0; index < children.length; index++) ...[
+            if (index > 0) const SizedBox(height: AppSpacing.related),
+            children[index],
           ],
-          child,
         ],
-      ),
+      );
+    }
+
+    return AppResponsiveGrid(
+      minItemWidth: 340,
+      maxColumns: desktopColumns,
+      gap: AppSpacing.gutter,
+      children: children,
     );
   }
 }

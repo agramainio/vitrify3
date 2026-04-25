@@ -213,7 +213,9 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                       'No pieces found',
                       style: Theme.of(context).textTheme.bodyLarge,
                     )
-                  : Column(
+                  : AppResponsiveGrid(
+                      minItemWidth: 360,
+                      maxColumns: 2,
                       children: [
                         for (final group in groups)
                           _PieceGroupCard(
@@ -353,6 +355,7 @@ class _PieceGroupCard extends StatelessWidget {
       key: group.isGrouped
           ? Key('piece-group-${group.key}')
           : Key('piece-row-${representative.id}'),
+      margin: EdgeInsets.zero,
       onTap: onTap,
       semanticLabel: group.title,
       child: Column(

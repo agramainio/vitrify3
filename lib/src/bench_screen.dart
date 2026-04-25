@@ -496,54 +496,57 @@ class _BottomBenchNav extends StatelessWidget {
     return Container(
       color: AppColors.shellBackground,
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-      child: Row(
-        children: [
-          for (var index = 0; index < items.length; index++) ...[
-            Expanded(
-              child: InkWell(
-                key: Key(
-                  'nav-${items[index].label.toLowerCase().replaceAll(' ', '-')}',
-                ),
-                onTap: () => onSelected(index),
-                borderRadius: BorderRadius.circular(AppRadii.button),
-                child: Container(
-                  padding: const EdgeInsets.only(top: 6, bottom: 7),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(
-                        color: currentIndex == index
-                            ? AppColors.iconColor
-                            : AppColors.shellBackground,
-                        width: 2,
-                      ),
-                    ),
+      child: AppResponsiveContent(
+        maxWidth: 960,
+        child: Row(
+          children: [
+            for (var index = 0; index < items.length; index++) ...[
+              Expanded(
+                child: InkWell(
+                  key: Key(
+                    'nav-${items[index].label.toLowerCase().replaceAll(' ', '-')}',
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        items[index].icon,
-                        size: 23,
-                        color: currentIndex == index
-                            ? AppColors.iconColor
-                            : AppColors.textPrimary,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        items[index].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontSize: 11,
+                  onTap: () => onSelected(index),
+                  borderRadius: BorderRadius.circular(AppRadii.button),
+                  child: Container(
+                    padding: const EdgeInsets.only(top: 6, bottom: 7),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: currentIndex == index
+                              ? AppColors.iconColor
+                              : AppColors.shellBackground,
+                          width: 2,
                         ),
                       ),
-                    ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          items[index].icon,
+                          size: 23,
+                          color: currentIndex == index
+                              ? AppColors.iconColor
+                              : AppColors.textPrimary,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          items[index].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

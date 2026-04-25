@@ -231,63 +231,34 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
                 padding: EdgeInsets.zero,
                 children: [
                   AppSection(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _DetailLine(label: 'Colors', value: _colorsLabel),
-                        _DetailLine(label: 'Status', value: _piece.stage.label),
-                        if (_piece.failed)
-                          const _DetailLine(label: 'Failure', value: 'Failed'),
-                        _DetailLine(label: 'Owner', value: _ownerLabel),
-                        _DetailLine(
-                          label: 'Destination',
-                          value: _piece.destination.label,
-                        ),
-                        _DetailLine(
-                          label: 'Price',
-                          value: formatPriceEuro(_piece.price),
-                        ),
-                        TextButton(
-                          key: const Key('piece-see-more-button'),
-                          onPressed: () {
-                            setState(() => _showMore = !_showMore);
-                          },
-                          child: Text(_showMore ? 'See less' : 'See more'),
-                        ),
-                        if (_showMore) ...[
-                          _DetailLine(label: 'Piece ID', value: _piece.id),
-                          _DetailLine(
-                            label: 'Created',
-                            value: MaterialLocalizations.of(
-                              context,
-                            ).formatMediumDate(_piece.createdAt),
-                            style: AppTypography.dateText,
-                          ),
-                          _DetailLine(
-                            label: 'Updated',
-                            value: MaterialLocalizations.of(
-                              context,
-                            ).formatMediumDate(_piece.updatedAt),
-                            style: AppTypography.dateText,
+                    child: AppResponsiveSplit(
+                      primary: _PieceDetailsPanel(
+                        piece: _piece,
+                        colorsLabel: _colorsLabel,
+                        ownerLabel: _ownerLabel,
+                        showMore: _showMore,
+                        onToggleMore: () {
+                          setState(() => _showMore = !_showMore);
+                        },
+                      ),
+                      secondary: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('MOLD IMAGE', style: AppTypography.sectionLabel),
+                          const SizedBox(height: 12),
+                          MoldImagePanel(
+                            imageReference: _piece.mold.imageReference,
+                            onUpload: _pickMoldImage,
+                            onUrlSubmitted: _setMoldImageUrl,
                           ),
                         ],
-                      ],
-                    ),
-                  ),
-                  AppSection(
-                    title: 'Mold image',
-                    child: MoldImagePanel(
-                      imageReference: _piece.mold.imageReference,
-                      onUpload: _pickMoldImage,
-                      onUrlSubmitted: _setMoldImageUrl,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            Container(
-              color: AppColors.shellBackground,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            AppActionBarShell(
               child: Row(
                 children: [
                   Expanded(
@@ -336,6 +307,57 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
       case PieceDestination.workshop:
         return 'Student';
     }
+  }
+}
+
+class _PieceDetailsPanel extends StatelessWidget {
+  const _PieceDetailsPanel({
+    required this.piece,
+    required this.colorsLabel,
+    required this.ownerLabel,
+    required this.showMore,
+    required this.onToggleMore,
+  });
+
+  final Piece piece;
+  final String colorsLabel;
+  final String ownerLabel;
+  final bool showMore;
+  final VoidCallback onToggleMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _DetailLine(label: 'Colors', value: colorsLabel),
+        _DetailLine(label: 'Status', value: piece.stage.label),
+        if (piece.failed) const _DetailLine(label: 'Failure', value: 'Failed'),
+        _DetailLine(label: 'Owner', value: ownerLabel),
+        _DetailLine(label: 'Destination', value: piece.destination.label),
+        _DetailLine(label: 'Price', value: formatPriceEuro(piece.price)),
+        TextButton(
+          key: const Key('piece-see-more-button'),
+          onPressed: onToggleMore,
+          child: Text(showMore ? 'See less' : 'See more'),
+        ),
+        if (showMore) ...[
+          _DetailLine(label: 'Piece ID', value: piece.id),
+          _DetailLine(
+            label: 'Created',
+            value: localizations.formatMediumDate(piece.createdAt),
+            style: AppTypography.dateText,
+          ),
+          _DetailLine(
+            label: 'Updated',
+            value: localizations.formatMediumDate(piece.updatedAt),
+            style: AppTypography.dateText,
+          ),
+        ],
+      ],
+    );
   }
 }
 

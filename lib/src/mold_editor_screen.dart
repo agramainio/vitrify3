@@ -370,62 +370,64 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
       padding: EdgeInsets.zero,
       children: [
         AppSection(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                key: const Key('mold-name-input'),
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'New mold name',
-                  errorText: _nameIsDuplicate
-                      ? 'Mold name already exists'
-                      : _submitError,
+          child: AppResponsiveSplit(
+            secondaryWidth: 420,
+            primary: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  key: const Key('mold-name-input'),
+                  controller: _nameController,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    hintText: 'New mold name',
+                    errorText: _nameIsDuplicate
+                        ? 'Mold name already exists'
+                        : _submitError,
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.related),
-              TextField(
-                key: const Key('mold-description-input'),
-                controller: _descriptionController,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(labelText: 'Description'),
-              ),
-              const SizedBox(height: AppSpacing.related),
-              DropdownButtonFormField<MoldSize>(
-                key: const Key('mold-size-dropdown'),
-                initialValue: _selectedSize,
-                decoration: const InputDecoration(labelText: 'Size'),
-                items: [
-                  for (final size in MoldSize.values)
-                    DropdownMenuItem(value: size, child: Text(size.label)),
-                ],
-                onChanged: (value) => setState(() => _selectedSize = value),
-              ),
-              const SizedBox(height: AppSpacing.related),
-              TextField(
-                key: const Key('mold-price-input'),
-                controller: _priceController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: AppSpacing.related),
+                TextField(
+                  key: const Key('mold-description-input'),
+                  controller: _descriptionController,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: 'Description'),
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9\.,]')),
-                ],
-                decoration: InputDecoration(
-                  labelText: 'Price',
-                  errorText: _price == null ? 'Enter a valid price' : null,
+                const SizedBox(height: AppSpacing.related),
+                DropdownButtonFormField<MoldSize>(
+                  key: const Key('mold-size-dropdown'),
+                  initialValue: _selectedSize,
+                  decoration: const InputDecoration(labelText: 'Size'),
+                  items: [
+                    for (final size in MoldSize.values)
+                      DropdownMenuItem(value: size, child: Text(size.label)),
+                  ],
+                  onChanged: (value) => setState(() => _selectedSize = value),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.gutter),
-              MoldImagePanel(
-                imageReference: _selectedImage,
-                onUpload: _pickImage,
-                onUrlSubmitted: _setImageUrl,
-              ),
-            ],
+                const SizedBox(height: AppSpacing.related),
+                TextField(
+                  key: const Key('mold-price-input'),
+                  controller: _priceController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9\.,]')),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: 'Price',
+                    errorText: _price == null ? 'Enter a valid price' : null,
+                  ),
+                ),
+              ],
+            ),
+            secondary: MoldImagePanel(
+              imageReference: _selectedImage,
+              onUpload: _pickImage,
+              onUrlSubmitted: _setImageUrl,
+            ),
           ),
         ),
       ],
@@ -523,9 +525,7 @@ class _MoldFormActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.shellBackground,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+    return AppActionBarShell(
       child: SizedBox(
         width: double.infinity,
         child: FilledButton(
@@ -546,9 +546,7 @@ class _MoldSummaryActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.shellBackground,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+    return AppActionBarShell(
       child: Row(
         children: [
           Expanded(

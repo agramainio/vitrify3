@@ -798,62 +798,69 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
       padding: EdgeInsets.zero,
       children: [
         AppSection(
-          title: 'Mold',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: AppResponsiveFormGrid(
+            desktopColumns: 3,
             children: [
-              _MoldInput(
-                controller: _moldController,
-                suggestions: moldSuggestions,
-                query: moldQuery,
-                selectedMold: _selectedMold,
-                onPick: _pickMold,
-                onCreate: () => _createInlineMold(moldQuery),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const Key('quantity-input'),
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Quantity'),
-              ),
-              if (widget.isEditing) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Changing quantity creates new piece IDs.',
-                  style: Theme.of(context).textTheme.bodyMedium,
+              _EditorPanel(
+                title: 'Mold',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _MoldInput(
+                      controller: _moldController,
+                      suggestions: moldSuggestions,
+                      query: moldQuery,
+                      selectedMold: _selectedMold,
+                      onPick: _pickMold,
+                      onCreate: () => _createInlineMold(moldQuery),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: const Key('quantity-input'),
+                      controller: _quantityController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(labelText: 'Quantity'),
+                    ),
+                    if (widget.isEditing) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Changing quantity creates new piece IDs.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
+              _EditorPanel(
+                title: 'Colors',
+                child: _ColorEditor(
+                  selectedColors: _selectedColors,
+                  colorController: _colorController,
+                  suggestions: colorSuggestions,
+                  query: colorQuery,
+                  repository: widget.repository,
+                  onCommit: _commitColorQuery,
+                  onRemove: _removeColor,
+                  onNoColor: _selectNoColor,
+                ),
+              ),
+              _EditorPanel(
+                title: 'Destination + price',
+                child: _CommerceEditor(
+                  destination: _destination,
+                  linkedRecord: _selectedLinkedRecord,
+                  linkController: _linkController,
+                  showLinkSuggestions: _showLinkSuggestions,
+                  priceController: _priceController,
+                  repository: widget.repository,
+                  onDestinationSelected: _selectDestination,
+                  onLinkedRecordSelected: _selectLinkedRecord,
+                  onCreateLinkedRecord: _createInlineLinkedRecord,
+                  onClearLinkedRecord: _clearLinkedRecord,
+                ),
+              ),
             ],
-          ),
-        ),
-        AppSection(
-          title: 'Colors',
-          child: _ColorEditor(
-            selectedColors: _selectedColors,
-            colorController: _colorController,
-            suggestions: colorSuggestions,
-            query: colorQuery,
-            repository: widget.repository,
-            onCommit: _commitColorQuery,
-            onRemove: _removeColor,
-            onNoColor: _selectNoColor,
-          ),
-        ),
-        AppSection(
-          title: 'Destination + price',
-          child: _CommerceEditor(
-            destination: _destination,
-            linkedRecord: _selectedLinkedRecord,
-            linkController: _linkController,
-            showLinkSuggestions: _showLinkSuggestions,
-            priceController: _priceController,
-            repository: widget.repository,
-            onDestinationSelected: _selectDestination,
-            onLinkedRecordSelected: _selectLinkedRecord,
-            onCreateLinkedRecord: _createInlineLinkedRecord,
-            onClearLinkedRecord: _clearLinkedRecord,
           ),
         ),
       ],
@@ -866,106 +873,114 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        if (widget.batchPieces == null)
-          AppSection(
-            title: 'Identity',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Piece ID', style: theme.textTheme.labelMedium),
-                const SizedBox(height: 4),
-                Text(piece.id, style: theme.textTheme.bodyLarge),
-                const SizedBox(height: 12),
-                Text('Created', style: theme.textTheme.labelMedium),
-                const SizedBox(height: 4),
-                Text(
-                  _formatTimestamp(context, piece.createdAt),
-                  style: AppTypography.dateText,
-                ),
-                const SizedBox(height: 12),
-                Text('Updated', style: theme.textTheme.labelMedium),
-                const SizedBox(height: 4),
-                Text(
-                  _formatTimestamp(context, piece.updatedAt),
-                  style: AppTypography.dateText,
-                ),
-              ],
-            ),
-          )
-        else
-          AppSection(
-            title: 'Selection',
-            child: Text(
-              '${widget.batchPieces!.length} pieces selected',
-              style: theme.textTheme.bodyLarge,
-            ),
-          ),
         AppSection(
-          title: 'Quantity',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: AppResponsiveFormGrid(
             children: [
-              TextField(
-                key: const Key('edit-quantity-input'),
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Quantity'),
+              if (widget.batchPieces == null)
+                _EditorPanel(
+                  title: 'Identity',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Piece ID', style: theme.textTheme.labelMedium),
+                      const SizedBox(height: 4),
+                      Text(piece.id, style: theme.textTheme.bodyLarge),
+                      const SizedBox(height: 12),
+                      Text('Created', style: theme.textTheme.labelMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatTimestamp(context, piece.createdAt),
+                        style: AppTypography.dateText,
+                      ),
+                      const SizedBox(height: 12),
+                      Text('Updated', style: theme.textTheme.labelMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatTimestamp(context, piece.updatedAt),
+                        style: AppTypography.dateText,
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _EditorPanel(
+                  title: 'Selection',
+                  child: Text(
+                    '${widget.batchPieces!.length} pieces selected',
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                ),
+              _EditorPanel(
+                title: 'Quantity',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      key: const Key('edit-quantity-input'),
+                      controller: _quantityController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(labelText: 'Quantity'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Changing quantity creates new piece IDs.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Changing quantity creates new piece IDs.',
-                style: theme.textTheme.bodyMedium,
+              _EditableField(
+                title: 'Mold',
+                value: _selectedMold?.name ?? _moldController.text,
+                isEditing: _editingMold,
+                onEdit: () => setState(() => _editingMold = !_editingMold),
+                editor: _buildMoldEditControls(),
               ),
+              _EditableField(
+                title: 'Color',
+                value: _colorsLabel,
+                isEditing: _editingColors,
+                onEdit: () => setState(() => _editingColors = !_editingColors),
+                editor: _buildColorEditControls(),
+              ),
+              _EditableField(
+                title: 'Price / Destination',
+                value: _commerceSummary,
+                isEditing: _editingCommerce,
+                onEdit: () {
+                  setState(() => _editingCommerce = !_editingCommerce);
+                },
+                editor: _CommerceEditor(
+                  destination: _destination,
+                  linkedRecord: _selectedLinkedRecord,
+                  linkController: _linkController,
+                  showLinkSuggestions: _showLinkSuggestions,
+                  priceController: _priceController,
+                  repository: widget.repository,
+                  onDestinationSelected: _selectDestination,
+                  onLinkedRecordSelected: _selectLinkedRecord,
+                  onCreateLinkedRecord: _createInlineLinkedRecord,
+                  onClearLinkedRecord: _clearLinkedRecord,
+                ),
+              ),
+              _EditableField(
+                title: 'State',
+                value: _stateSummary,
+                isEditing: _editingState,
+                onEdit: () => setState(() => _editingState = !_editingState),
+                editor: _buildStateEditControls(context),
+              ),
+              if (_isIdentityChange)
+                _EditorPanel(
+                  child: Text(
+                    'Changing mold or colors creates a new piece ID.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
             ],
           ),
         ),
-        _EditableField(
-          title: 'Mold',
-          value: _selectedMold?.name ?? _moldController.text,
-          isEditing: _editingMold,
-          onEdit: () => setState(() => _editingMold = !_editingMold),
-          editor: _buildMoldEditControls(),
-        ),
-        _EditableField(
-          title: 'Color',
-          value: _colorsLabel,
-          isEditing: _editingColors,
-          onEdit: () => setState(() => _editingColors = !_editingColors),
-          editor: _buildColorEditControls(),
-        ),
-        _EditableField(
-          title: 'Price / Destination',
-          value: _commerceSummary,
-          isEditing: _editingCommerce,
-          onEdit: () => setState(() => _editingCommerce = !_editingCommerce),
-          editor: _CommerceEditor(
-            destination: _destination,
-            linkedRecord: _selectedLinkedRecord,
-            linkController: _linkController,
-            showLinkSuggestions: _showLinkSuggestions,
-            priceController: _priceController,
-            repository: widget.repository,
-            onDestinationSelected: _selectDestination,
-            onLinkedRecordSelected: _selectLinkedRecord,
-            onCreateLinkedRecord: _createInlineLinkedRecord,
-            onClearLinkedRecord: _clearLinkedRecord,
-          ),
-        ),
-        _EditableField(
-          title: 'State',
-          value: _stateSummary,
-          isEditing: _editingState,
-          onEdit: () => setState(() => _editingState = !_editingState),
-          editor: _buildStateEditControls(context),
-        ),
-        if (_isIdentityChange)
-          AppSection(
-            child: Text(
-              'Changing mold or colors creates a new piece ID.',
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
       ],
     );
   }
@@ -1456,7 +1471,7 @@ class _EditableField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return AppSection(
+    return _EditorPanel(
       title: title,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1477,6 +1492,30 @@ class _EditableField extends StatelessWidget {
             ],
           ),
           if (isEditing) ...[const SizedBox(height: 12), editor],
+        ],
+      ),
+    );
+  }
+}
+
+class _EditorPanel extends StatelessWidget {
+  const _EditorPanel({required this.child, this.title});
+
+  final Widget child;
+  final String? title;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      margin: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null) ...[
+            Text(title!.toUpperCase(), style: AppTypography.sectionLabel),
+            const SizedBox(height: 12),
+          ],
+          child,
         ],
       ),
     );
@@ -1545,9 +1584,7 @@ class _EditorActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.shellBackground,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+    return AppActionBarShell(
       child: Row(
         children: [
           if (onDelete != null) ...[

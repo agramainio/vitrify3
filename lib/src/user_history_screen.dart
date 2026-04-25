@@ -163,21 +163,24 @@ class UserHistorySection extends StatelessWidget {
           children: [
             AppSection(
               title: 'History',
-              child: pieces.isEmpty
-                  ? Text(
-                      'No pieces yet.',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    )
-                  : Column(
-                      children: [
-                        for (final piece in pieces)
-                          _UserHistoryRow(
-                            key: Key('user-history-${piece.id}'),
-                            piece: piece,
-                            onTap: () => onOpenPiece(piece),
-                          ),
-                      ],
-                    ),
+              child: AppResponsiveContent(
+                maxWidth: AppResponsive.readingMaxWidth,
+                child: pieces.isEmpty
+                    ? Text(
+                        'No pieces yet.',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      )
+                    : Column(
+                        children: [
+                          for (final piece in pieces)
+                            _UserHistoryRow(
+                              key: Key('user-history-${piece.id}'),
+                              piece: piece,
+                              onTap: () => onOpenPiece(piece),
+                            ),
+                        ],
+                      ),
+              ),
             ),
           ],
         );

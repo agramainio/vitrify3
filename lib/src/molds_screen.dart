@@ -216,12 +216,17 @@ class MoldsSection extends StatelessWidget {
           padding: EdgeInsets.zero,
           children: [
             AppSection(
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  key: const Key('create-mold-button'),
-                  onPressed: onCreateMold,
-                  child: const Text('Create mold'),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: AppResponsive.isDesktop(context)
+                      ? 220
+                      : double.infinity,
+                  child: FilledButton(
+                    key: const Key('create-mold-button'),
+                    onPressed: onCreateMold,
+                    child: const Text('Create mold'),
+                  ),
                 ),
               ),
             ),
@@ -231,7 +236,9 @@ class MoldsSection extends StatelessWidget {
                       'No molds found',
                       style: Theme.of(context).textTheme.bodyLarge,
                     )
-                  : Column(
+                  : AppResponsiveGrid(
+                      minItemWidth: 320,
+                      maxColumns: 3,
                       children: [
                         for (final mold in molds)
                           _MoldCard(
@@ -264,6 +271,7 @@ class _MoldCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCard(
       key: Key('mold-card-${mold.id}'),
+      margin: EdgeInsets.zero,
       onTap: onEdit,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

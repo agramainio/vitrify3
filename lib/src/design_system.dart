@@ -80,9 +80,17 @@ class AppTypography {
   );
 
   static const dateText = TextStyle(
-    fontFamily: dateFontFamily,
+    fontFamily: bodyFontFamily,
     fontSize: 12,
     letterSpacing: 1.2,
+    height: 1.2,
+    color: AppColors.textPrimary,
+  );
+
+  static const topBarText = TextStyle(
+    fontFamily: dateFontFamily,
+    fontSize: 12,
+    letterSpacing: 1.0,
     height: 1.2,
     color: AppColors.textPrimary,
   );
@@ -185,12 +193,11 @@ class AppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Container(
       color: AppColors.shellBackground,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (onBack != null) ...[
             SizedBox(
@@ -210,19 +217,17 @@ class AppHeader extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           Flexible(
-            flex: 3,
             child: Text(
               screenName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium,
+              style: AppTypography.topBarText,
             ),
           ),
           const SizedBox(width: 8),
-          Text(dateLabel, style: AppTypography.dateText),
+          Text(dateLabel, style: AppTypography.topBarText),
           const SizedBox(width: 10),
           Expanded(
-            flex: 4,
             child: SizedBox(
               height: 38,
               child: TextField(

@@ -1,6 +1,6 @@
 enum PieceStage {
   toFire('to_fire', 'To fire'),
-  toGlaze('to_glaze', 'To glaze'),
+  toGlaze('bisque_fired', 'Bisque fired'),
   ready('ready', 'Ready');
 
   const PieceStage(this.id, this.label);

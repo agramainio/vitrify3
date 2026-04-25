@@ -35,7 +35,8 @@ void main() {
         original.copyWith(price: 34, stage: PieceStage.toGlaze),
       );
       expect(updatedWithoutIdentityChange.id, original.id);
-      expect(updatedWithoutIdentityChange.stage.label, 'To glaze');
+      expect(updatedWithoutIdentityChange.stage.id, 'bisque_fired');
+      expect(updatedWithoutIdentityChange.stage.label, 'Bisque fired');
 
       final updatedWithIdentityChange = await repository.updatePiece(
         updatedWithoutIdentityChange.copyWith(
@@ -82,8 +83,47 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('new-piece-button')), findsOneWidget);
+      expect(find.byKey(const Key('new-person-button')), findsOneWidget);
+      expect(find.byKey(const Key('new-firing-batch-button')), findsOneWidget);
+      expect(find.byKey(const Key('new-mold-button')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('new-mold-button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New mold'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('mold-name-input')),
+        'Tall Vase',
+      );
+      await tester.enterText(find.byKey(const Key('mold-price-input')), '55');
+      await tester.tap(find.byKey(const Key('save-mold-button')));
+      await tester.pumpAndSettle();
+
+      expect(repository.findExactMold('Tall Vase')?.defaultPrice, 55);
     },
   );
+
+  testWidgets('bench KPI opens all pieces with matching stage filter', (
+    WidgetTester tester,
+  ) async {
+    final repository = DemoStudioRepository.seeded();
+    final bisquePiece = repository.allPieces().firstWhere(
+      (piece) => piece.stage == PieceStage.toGlaze,
+    );
+    final readyPiece = repository.allPieces().firstWhere(
+      (piece) => piece.stage == PieceStage.ready,
+    );
+    _configureMobileViewport(tester);
+
+    await tester.pumpWidget(VitrifyApp(repository: repository));
+    await tester.tap(find.text('To glaze'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('stage-filter-To glaze')), findsOneWidget);
+    expect(find.byKey(Key('piece-row-${bisquePiece.id}')), findsOneWidget);
+    expect(find.byKey(Key('piece-row-${readyPiece.id}')), findsNothing);
+  });
 
   testWidgets('plus create flow stays direct and collapses selected order', (
     WidgetTester tester,
@@ -182,7 +222,7 @@ void main() {
   });
 
   testWidgets(
-    'all pieces uses header search, horizontal filters, and row edit',
+    'all pieces uses header search, horizontal filters, and flat detail rows',
     (WidgetTester tester) async {
       final repository = DemoStudioRepository.seeded();
       final target = repository.allPieces().firstWhere(
@@ -196,8 +236,24 @@ void main() {
 
       expect(find.text('ALL PIECES'), findsNothing);
       expect(find.byKey(const Key('all-pieces-search')), findsNothing);
+      expect(find.byKey(const Key('mold-filter-input')), findsNothing);
+      expect(find.byKey(const Key('color-filter-input')), findsNothing);
+      expect(find.byKey(const Key('failed-only-filter')), findsNothing);
       expect(find.text('Open'), findsNothing);
       expect(find.text(target.id), findsNothing);
+      expect(find.byKey(const Key('filter-all')), findsOneWidget);
+      expect(find.byKey(const Key('stage-filter-To fire')), findsOneWidget);
+      expect(find.byKey(const Key('stage-filter-To glaze')), findsOneWidget);
+      expect(find.byKey(const Key('stage-filter-Ready')), findsOneWidget);
+      expect(
+        find.byKey(const Key('destination-filter-Client')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('destination-filter-Student')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('destination-filter-Stock')), findsOneWidget);
 
       await tester.enterText(
         find.byKey(const Key('global-search-input')),
@@ -212,15 +268,34 @@ void main() {
       await tester.pump();
       expect(find.byKey(Key('piece-row-${target.id}')), findsNothing);
 
-      await tester.tap(find.byKey(const Key('stage-filter-all')));
+      await tester.tap(find.byKey(const Key('filter-all')));
       await tester.pump();
       expect(find.byKey(Key('piece-row-${target.id}')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('global-search-input')),
+        'not a real porcelain piece',
+      );
+      await tester.pump();
+      expect(find.text('No pieces found'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('global-search-input')),
+        target.id,
+      );
+      await tester.pump();
 
       await tester.tap(find.byKey(Key('piece-row-${target.id}')));
       await tester.pumpAndSettle();
 
       expect(find.text('EDIT PIECE'), findsNothing);
+      expect(find.text('Piece ID'), findsOneWidget);
       expect(find.text(target.id), findsOneWidget);
+      expect(find.byKey(Key('piece-detail-edit-${target.id}')), findsOneWidget);
+
+      await tester.tap(find.byKey(Key('piece-detail-edit-${target.id}')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('edit-mold')), findsOneWidget);
     },
   );

@@ -2,107 +2,45 @@ import 'package:flutter/material.dart';
 
 import 'design_system.dart';
 import 'models.dart';
-import 'piece_editor_screen.dart';
+import 'piece_detail_screen.dart';
 import 'studio_repository.dart';
 
 class AllPiecesScreen extends StatefulWidget {
   const AllPiecesScreen({
     required this.repository,
     required this.searchQuery,
+    required this.stageFilter,
+    required this.destinationFilter,
+    required this.onFiltersChanged,
+    required this.onClearFilters,
     super.key,
   });
 
   final StudioRepository repository;
   final String searchQuery;
+  final PieceStage? stageFilter;
+  final PieceDestination? destinationFilter;
+  final void Function({PieceStage? stage, PieceDestination? destination})
+  onFiltersChanged;
+  final VoidCallback onClearFilters;
 
   @override
   State<AllPiecesScreen> createState() => _AllPiecesScreenState();
 }
 
 class _AllPiecesScreenState extends State<AllPiecesScreen> {
-  late final TextEditingController _moldFilterController;
-  late final TextEditingController _colorFilterController;
-
-  PieceStage? _stageFilter;
-  PieceDestination? _destinationFilter;
-  bool _failedOnly = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _moldFilterController = TextEditingController()
-      ..addListener(_handleFilterChange);
-    _colorFilterController = TextEditingController()
-      ..addListener(_handleFilterChange);
-  }
-
-  @override
-  void dispose() {
-    _moldFilterController
-      ..removeListener(_handleFilterChange)
-      ..dispose();
-    _colorFilterController
-      ..removeListener(_handleFilterChange)
-      ..dispose();
-    super.dispose();
-  }
-
-  void _handleFilterChange() {
-    setState(() {});
-  }
-
-  Future<void> _editPiece(Piece piece) async {
-    await Navigator.of(context).push<PieceEditResult>(
+  Future<void> _openPiece(Piece piece) async {
+    await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) {
-          return PieceEditorScreen.edit(
-            repository: widget.repository,
-            piece: piece,
-          );
+          return PieceDetailScreen(repository: widget.repository, piece: piece);
         },
       ),
     );
   }
 
-  Future<void> _deletePiece(Piece piece) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete piece'),
-          content: Text('Delete ${piece.id}? This cannot be undone.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    await widget.repository.deletePiece(piece.id);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final moldQuery = _moldFilterController.text.trim();
-    final colorQuery = _colorFilterController.text.trim();
-    final moldSuggestions = moldQuery.isEmpty
-        ? const <Mold>[]
-        : widget.repository.suggestMolds(moldQuery, limit: 6);
-    final colorSuggestions = colorQuery.isEmpty
-        ? const <StudioColor>[]
-        : widget.repository.suggestColors(colorQuery, limit: 6);
-
     return AnimatedBuilder(
       animation: widget.repository,
       builder: (context, _) {
@@ -120,93 +58,78 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                 child: Row(
                   children: [
                     _FilterChip(
-                      key: const Key('stage-filter-all'),
-                      label: 'All statuses',
-                      selected: _stageFilter == null,
-                      onTap: () => setState(() => _stageFilter = null),
-                    ),
-                    for (final stage in PieceStage.values)
-                      _FilterChip(
-                        key: Key('stage-filter-${stage.label}'),
-                        label: stage.label,
-                        selected: _stageFilter == stage,
-                        onTap: () => setState(() => _stageFilter = stage),
-                      ),
-                    _FilterGap(),
-                    _FilterChip(
-                      key: const Key('destination-filter-all'),
-                      label: 'All destinations',
-                      selected: _destinationFilter == null,
-                      onTap: () => setState(() => _destinationFilter = null),
-                    ),
-                    for (final destination in PieceDestination.values)
-                      _FilterChip(
-                        key: Key('destination-filter-${destination.label}'),
-                        label: destination.label,
-                        selected: _destinationFilter == destination,
-                        onTap: () {
-                          setState(() => _destinationFilter = destination);
-                        },
-                      ),
-                    _FilterGap(),
-                    _FilterChip(
-                      key: const Key('failed-only-filter'),
-                      label: 'Failed only',
-                      selected: _failedOnly,
+                      key: const Key('filter-all'),
+                      label: 'All',
+                      selected: _noChipFilters,
                       onTap: () {
-                        setState(() => _failedOnly = !_failedOnly);
+                        widget.onClearFilters();
                       },
                     ),
-                    _FilterGap(),
-                    _FilterTextField(
-                      key: const Key('mold-filter-input'),
-                      controller: _moldFilterController,
-                      label: 'Filter by mold',
+                    _FilterChip(
+                      key: const Key('stage-filter-To fire'),
+                      label: 'To fire',
+                      selected: widget.stageFilter == PieceStage.toFire,
+                      onTap: () {
+                        widget.onFiltersChanged(stage: PieceStage.toFire);
+                      },
                     ),
-                    _FilterGap(),
-                    _FilterTextField(
-                      key: const Key('color-filter-input'),
-                      controller: _colorFilterController,
-                      label: 'Filter by color',
+                    _FilterChip(
+                      key: const Key('stage-filter-To glaze'),
+                      label: 'To glaze',
+                      selected: widget.stageFilter == PieceStage.toGlaze,
+                      onTap: () {
+                        widget.onFiltersChanged(stage: PieceStage.toGlaze);
+                      },
+                    ),
+                    _FilterChip(
+                      key: const Key('stage-filter-Ready'),
+                      label: 'Ready',
+                      selected: widget.stageFilter == PieceStage.ready,
+                      onTap: () {
+                        widget.onFiltersChanged(stage: PieceStage.ready);
+                      },
+                    ),
+                    _FilterChip(
+                      key: const Key('destination-filter-Client'),
+                      label: 'Client',
+                      selected:
+                          widget.destinationFilter == PieceDestination.order,
+                      onTap: () {
+                        widget.onFiltersChanged(
+                          destination: PieceDestination.order,
+                        );
+                      },
+                    ),
+                    _FilterChip(
+                      key: const Key('destination-filter-Student'),
+                      label: 'Student',
+                      selected:
+                          widget.destinationFilter == PieceDestination.workshop,
+                      onTap: () {
+                        widget.onFiltersChanged(
+                          destination: PieceDestination.workshop,
+                        );
+                      },
+                    ),
+                    _FilterChip(
+                      key: const Key('destination-filter-Stock'),
+                      label: 'Stock',
+                      selected:
+                          widget.destinationFilter == PieceDestination.stock,
+                      onTap: () {
+                        widget.onFiltersChanged(
+                          destination: PieceDestination.stock,
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
             ),
-            if (moldSuggestions.isNotEmpty)
-              AppSection(
-                child: Column(
-                  children: [
-                    for (final mold in moldSuggestions)
-                      _SuggestionRow(
-                        key: Key('mold-filter-suggestion-${mold.name}'),
-                        label: mold.name,
-                        onTap: () {
-                          _moldFilterController.text = mold.name;
-                        },
-                      ),
-                  ],
-                ),
-              ),
-            if (colorSuggestions.isNotEmpty)
-              AppSection(
-                child: Column(
-                  children: [
-                    for (final color in colorSuggestions)
-                      _SuggestionRow(
-                        key: Key('color-filter-suggestion-${color.name}'),
-                        label: color.name,
-                        onTap: () {
-                          _colorFilterController.text = color.name;
-                        },
-                      ),
-                  ],
-                ),
-              ),
             AppSection(
               child: pieces.isEmpty
                   ? Text(
-                      'No pieces match.',
+                      'No pieces found',
                       style: Theme.of(context).textTheme.bodyLarge,
                     )
                   : Column(
@@ -214,8 +137,8 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
                         for (final piece in pieces)
                           _PieceRow(
                             piece: piece,
-                            onEdit: () => _editPiece(piece),
-                            onDelete: () => _deletePiece(piece),
+                            onTap: () => _openPiece(piece),
+                            onLongPress: () {},
                           ),
                       ],
                     ),
@@ -226,32 +149,19 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
     );
   }
 
+  bool get _noChipFilters {
+    return widget.stageFilter == null && widget.destinationFilter == null;
+  }
+
   bool _matchesFilters(Piece piece) {
     final searchQuery = widget.searchQuery.trim().toLowerCase();
-    final moldQuery = _moldFilterController.text.trim().toLowerCase();
-    final colorQuery = _colorFilterController.text.trim().toLowerCase();
 
-    if (_stageFilter != null && piece.stage != _stageFilter) {
+    if (widget.stageFilter != null && piece.stage != widget.stageFilter) {
       return false;
     }
 
-    if (_destinationFilter != null && piece.destination != _destinationFilter) {
-      return false;
-    }
-
-    if (_failedOnly && !piece.failed) {
-      return false;
-    }
-
-    if (moldQuery.isNotEmpty &&
-        !piece.mold.name.toLowerCase().contains(moldQuery)) {
-      return false;
-    }
-
-    if (colorQuery.isNotEmpty &&
-        !piece.colors.any(
-          (color) => color.name.toLowerCase().contains(colorQuery),
-        )) {
+    if (widget.destinationFilter != null &&
+        piece.destination != widget.destinationFilter) {
       return false;
     }
 
@@ -264,7 +174,7 @@ class _AllPiecesScreenState extends State<AllPiecesScreen> {
       piece.mold.name,
       piece.stage.label,
       piece.destination.label,
-      piece.commercialState.label,
+      _ownerLabel(piece),
       if (piece.linkedRecord != null) piece.linkedRecord!.label,
       if (piece.failureRecord != null) piece.failureRecord!.reason,
       ...piece.colors.map((color) => color.name),
@@ -288,79 +198,26 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(2),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
-            color: selected ? AppColors.primaryAccent : AppColors.appBackground,
-            border: Border.all(color: AppColors.textPrimary),
+            color: selected ? AppColors.primaryAccent : null,
             borderRadius: BorderRadius.circular(2),
           ),
-          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterGap extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(width: 8);
-  }
-}
-
-class _FilterTextField extends StatelessWidget {
-  const _FilterTextField({
-    required this.controller,
-    required this.label,
-    super.key,
-  });
-
-  final TextEditingController controller;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 190,
-      height: 42,
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 8,
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: selected ? AppColors.appBackground : AppColors.textPrimary,
+            ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.label, required this.onTap, super.key});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(2),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
-        ),
-        child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
       ),
     );
   }
@@ -369,71 +226,92 @@ class _SuggestionRow extends StatelessWidget {
 class _PieceRow extends StatelessWidget {
   const _PieceRow({
     required this.piece,
-    required this.onEdit,
-    required this.onDelete,
+    required this.onTap,
+    required this.onLongPress,
   });
 
   final Piece piece;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorsLabel = piece.colors.map((color) => color.name).join(', ');
-    final linkLabel = piece.linkedRecord == null
-        ? null
-        : '${piece.destination.label}: ${piece.linkedRecord!.label}';
     final dateLabel = MaterialLocalizations.of(
       context,
     ).formatMediumDate(piece.updatedAt);
 
     return InkWell(
       key: Key('piece-row-${piece.id}'),
-      onTap: onEdit,
+      onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(2),
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        height: 54,
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.textPrimary)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(piece.mold.name, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 6),
-            Text(colorsLabel, style: theme.textTheme.bodyLarge),
-            const SizedBox(height: 4),
-            Text(
-              '${piece.stage.label} - ${piece.destination.label} - ${formatPrice(piece.price)}',
-              style: theme.textTheme.bodyMedium,
+            Expanded(
+              flex: 4,
+              child: _RowText(
+                piece.mold.name,
+                style: theme.textTheme.bodyLarge,
+              ),
             ),
-            if (linkLabel != null) ...[
-              const SizedBox(height: 4),
-              Text(linkLabel, style: theme.textTheme.bodyMedium),
-            ],
-            const SizedBox(height: 4),
-            Text(dateLabel, style: AppTypography.dateText),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                TextButton(
-                  key: Key('edit-piece-${piece.id}'),
-                  onPressed: onEdit,
-                  child: const Text('Edit'),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  key: Key('delete-piece-${piece.id}'),
-                  onPressed: onDelete,
-                  child: const Text('Delete'),
-                ),
-              ],
+            Expanded(flex: 4, child: _RowText(_ownerLabel(piece))),
+            Expanded(flex: 3, child: _RowText(piece.stage.label)),
+            Expanded(flex: 4, child: _RowText(_colorsLabel(piece))),
+            Expanded(
+              flex: 3,
+              child: _RowText(dateLabel, style: AppTypography.dateText),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+class _RowText extends StatelessWidget {
+  const _RowText(this.value, {this.style});
+
+  final String value;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style ?? Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
+}
+
+String _ownerLabel(Piece piece) {
+  if (piece.linkedRecord != null) {
+    return piece.linkedRecord!.label;
+  }
+
+  switch (piece.destination) {
+    case PieceDestination.stock:
+      return 'Stock';
+    case PieceDestination.order:
+      return 'Client';
+    case PieceDestination.workshop:
+      return 'Student';
+  }
+}
+
+String _colorsLabel(Piece piece) {
+  if (piece.colors.isEmpty) {
+    return '-';
+  }
+  return piece.colors.map((color) => color.name).join(', ');
 }

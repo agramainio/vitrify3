@@ -145,32 +145,34 @@ class _MoldsScreenState extends State<MoldsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            AppHeader(
-              screenName: 'Molds',
-              searchController: _searchController,
-              onSearchChanged: (_) => setState(() {}),
-              onBack: () => Navigator.of(context).maybePop(),
-              onUserTap: _openUserPage,
-            ),
-            GlobalPieceSearchResults(
-              repository: widget.repository,
-              searchController: _searchController,
-              onOpenPiece: _openSearchPiece,
-              onCreatePiece: _openNewPiece,
-            ),
-            Expanded(
-              child: MoldsSection(
-                repository: widget.repository,
-                searchQuery: _searchController.text,
-                onCreateMold: _createMold,
-                onEditMold: _editMold,
-                onDeleteMold: _deleteMold,
+      body: SelectionArea(
+        child: SafeArea(
+          child: Column(
+            children: [
+              AppHeader(
+                screenName: 'Molds',
+                searchController: _searchController,
+                onSearchChanged: (_) => setState(() {}),
+                onBack: () => Navigator.of(context).maybePop(),
+                onUserTap: _openUserPage,
               ),
-            ),
-          ],
+              GlobalPieceSearchResults(
+                repository: widget.repository,
+                searchController: _searchController,
+                onOpenPiece: _openSearchPiece,
+                onCreatePiece: _openNewPiece,
+              ),
+              Expanded(
+                child: MoldsSection(
+                  repository: widget.repository,
+                  searchQuery: _searchController.text,
+                  onCreateMold: _createMold,
+                  onEditMold: _editMold,
+                  onDeleteMold: _deleteMold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -329,36 +329,38 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
         _handleBlockedPop();
       },
       child: Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              AppHeader(
-                screenName: widget.isEditing ? 'Edit mold' : 'New mold',
-                searchController: _headerSearchController,
-                onSearchChanged: (_) => setState(() {}),
-                onBack: _maybePop,
-                onUserTap: _openUserPage,
-              ),
-              GlobalPieceSearchResults(
-                repository: widget.repository,
-                searchController: _headerSearchController,
-                onOpenPiece: _openSearchPiece,
-                onCreatePiece: _openNewPiece,
-              ),
-              Expanded(
-                child: _showSummary ? _buildSummary(context) : _buildForm(),
-              ),
-              _showSummary
-                  ? _MoldSummaryActions(
-                      onEdit: () => setState(() => _showSummary = false),
-                      onConfirm: _confirm,
-                    )
-                  : _MoldFormActions(
-                      canSubmit: _canReview,
-                      onSubmit: _review,
-                      label: widget.isEditing ? 'Edit' : 'Create',
-                    ),
-            ],
+        body: SelectionArea(
+          child: SafeArea(
+            child: Column(
+              children: [
+                AppHeader(
+                  screenName: widget.isEditing ? 'Edit mold' : 'New mold',
+                  searchController: _headerSearchController,
+                  onSearchChanged: (_) => setState(() {}),
+                  onBack: _maybePop,
+                  onUserTap: _openUserPage,
+                ),
+                GlobalPieceSearchResults(
+                  repository: widget.repository,
+                  searchController: _headerSearchController,
+                  onOpenPiece: _openSearchPiece,
+                  onCreatePiece: _openNewPiece,
+                ),
+                Expanded(
+                  child: _showSummary ? _buildSummary(context) : _buildForm(),
+                ),
+                _showSummary
+                    ? _MoldSummaryActions(
+                        onEdit: () => setState(() => _showSummary = false),
+                        onConfirm: _confirm,
+                      )
+                    : _MoldFormActions(
+                        canSubmit: _canReview,
+                        onSubmit: _review,
+                        label: widget.isEditing ? 'Edit' : 'Create',
+                      ),
+              ],
+            ),
           ),
         ),
       ),

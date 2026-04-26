@@ -154,29 +154,31 @@ class _BenchScreenState extends State<BenchScreen> {
             onNewPiece: _openNewPiece,
             onNewMold: _openNewMold,
           ),
-          body: SafeArea(
-            child: Column(
-              children: [
-                AppHeader(
-                  screenName: _screenName,
-                  searchController: _globalSearchController,
-                  onSearchChanged: (_) => setState(() {}),
-                  onUserTap: _openUserPage,
-                ),
-                _buildSearchSuggestions(),
-                Expanded(child: _buildSectionBody()),
-                const _BottomBenchNavDivider(),
-                _BottomBenchNav(
-                  currentIndex: _selectedSection,
-                  onSelected: (index) {
-                    setState(() {
-                      _selectedSection = index;
-                      _showCreateActions = false;
-                      _globalSearchController.clear();
-                    });
-                  },
-                ),
-              ],
+          body: SelectionArea(
+            child: SafeArea(
+              child: Column(
+                children: [
+                  AppHeader(
+                    screenName: _screenName,
+                    searchController: _globalSearchController,
+                    onSearchChanged: (_) => setState(() {}),
+                    onUserTap: _openUserPage,
+                  ),
+                  _buildSearchSuggestions(),
+                  Expanded(child: _buildSectionBody()),
+                  const _BottomBenchNavDivider(),
+                  _BottomBenchNav(
+                    currentIndex: _selectedSection,
+                    onSelected: (index) {
+                      setState(() {
+                        _selectedSection = index;
+                        _showCreateActions = false;
+                        _globalSearchController.clear();
+                      });
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );

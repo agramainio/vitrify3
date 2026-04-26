@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsAtelier(atelierId) {
+      return signedIn()
+        && firestore.get(/databases/(default)/documents/ateliers/$(atelierId)).data.ownerUid == request.auth.uid;
+    }
+
+    function isImageUpload() {
+      return request.resource != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /ateliers/{atelierId}/{allPaths=**} {
+      allow read: if ownsAtelier(atelierId);
+      allow write: if ownsAtelier(atelierId) && isImageUpload();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

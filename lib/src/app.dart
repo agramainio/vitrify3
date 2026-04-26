@@ -91,15 +91,9 @@ class _VitrifyAppState extends State<VitrifyApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(),
       builder: (context, child) {
-        return Overlay(
+        return KeyedSubtree(
           key: ValueKey(_user?.id ?? (_loadingUser ? 'loading' : 'setup')),
-          initialEntries: [
-            OverlayEntry(
-              builder: (context) {
-                return SelectionArea(child: child ?? const SizedBox.shrink());
-              },
-            ),
-          ],
+          child: child ?? const SizedBox.shrink(),
         );
       },
       home: _loadingUser
@@ -155,42 +149,44 @@ class _UserSetupScreenState extends State<_UserSetupScreen> {
     final canSubmit = _nameController.text.trim().isNotEmpty;
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.gutter),
-            child: AppResponsiveContent(
-              maxWidth: AppResponsive.narrowMaxWidth,
-              child: AppCard(
-                margin: EdgeInsets.zero,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'What is your name?',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.related),
-                    TextField(
-                      key: const Key('user-name-input'),
-                      controller: _nameController,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: canSubmit ? widget.onSubmit : null,
-                      decoration: const InputDecoration(labelText: 'Name'),
-                    ),
-                    const SizedBox(height: AppSpacing.gutter),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        key: const Key('save-user-button'),
-                        onPressed: canSubmit
-                            ? () => widget.onSubmit(_nameController.text)
-                            : null,
-                        child: const Text('Continue'),
+      body: SelectionArea(
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.gutter),
+              child: AppResponsiveContent(
+                maxWidth: AppResponsive.narrowMaxWidth,
+                child: AppCard(
+                  margin: EdgeInsets.zero,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'What is your name?',
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: AppSpacing.related),
+                      TextField(
+                        key: const Key('user-name-input'),
+                        controller: _nameController,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: canSubmit ? widget.onSubmit : null,
+                        decoration: const InputDecoration(labelText: 'Name'),
+                      ),
+                      const SizedBox(height: AppSpacing.gutter),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          key: const Key('save-user-button'),
+                          onPressed: canSubmit
+                              ? () => widget.onSubmit(_nameController.text)
+                              : null,
+                          child: const Text('Continue'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

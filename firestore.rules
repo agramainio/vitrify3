@@ -2,6 +2,91 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function atelierPath(atelierId) {
+      return /databases/$(database)/documents/ateliers/$(atelierId);
+    }
+
+    function atelierData(atelierId) {
+      return get(atelierPath(atelierId)).data;
+    }
+
+    function ownsAtelier(atelierId) {
+      return signedIn() && atelierData(atelierId).ownerUid == request.auth.uid;
+    }
+
+    function validAtelierStatus(status) {
+      return status in ['active', 'inactive', 'testing'];
+    }
+
+    function validAlias(alias) {
+      return alias is string
+        && alias.matches('^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$');
+    }
+
+    function createsOwnAtelier() {
+      return signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdByUid == request.auth.uid
+        && validAtelierStatus(request.resource.data.status)
+        && validAlias(request.resource.data.alias);
+    }
+
+    function keepsAtelierOwnership() {
+      return request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdByUid == resource.data.createdByUid;
+    }
+
+    function scopedToAtelier(atelierId) {
+      return !('atelierId' in request.resource.data)
+        || request.resource.data.atelierId == atelierId;
+    }
+
+    function createDoesNotSpoofUser() {
+      return !('createdByUid' in request.resource.data)
+        || request.resource.data.createdByUid == request.auth.uid;
+    }
+
+    function updateDoesNotSpoofUser() {
+      return !('createdByUid' in resource.data)
+        || request.resource.data.createdByUid == resource.data.createdByUid;
+    }
+
+    match /ateliers/{atelierId} {
+      allow create: if createsOwnAtelier();
+      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && keepsAtelierOwnership()
+        && validAtelierStatus(request.resource.data.status);
+      allow delete: if false;
+
+      match /{collectionName}/{documentId} {
+        allow read: if ownsAtelier(atelierId);
+        allow create: if ownsAtelier(atelierId)
+          && scopedToAtelier(atelierId)
+          && createDoesNotSpoofUser();
+        allow update: if ownsAtelier(atelierId)
+          && scopedToAtelier(atelierId)
+          && updateDoesNotSpoofUser();
+        allow delete: if ownsAtelier(atelierId);
+      }
+    }
+
+    match /atelierAliases/{alias} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && !exists(/databases/$(database)/documents/atelierAliases/$(alias))
+        && request.resource.data.alias == alias
+        && validAlias(alias)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.atelierId is string;
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

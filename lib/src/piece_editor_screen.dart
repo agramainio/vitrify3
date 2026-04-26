@@ -749,35 +749,37 @@ class _PieceEditorScreenState extends State<PieceEditorScreen> {
         _handleBlockedPop();
       },
       child: Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              AppHeader(
-                screenName: screenName,
-                searchController: _headerSearchController,
-                onSearchChanged: (_) => setState(() {}),
-                onBack: _maybePop,
-                onUserTap: _openUserPage,
-              ),
-              GlobalPieceSearchResults(
-                repository: widget.repository,
-                searchController: _headerSearchController,
-                onOpenPiece: _openSearchPiece,
-                onCreatePiece: _openNewPiece,
-              ),
-              Expanded(
-                child: widget.isEditing
-                    ? _buildEditBody(context, piece!)
-                    : _buildCreateBody(context),
-              ),
-              _EditorActionBar(
-                isEditing: widget.isEditing,
-                isIdentityChange: _isIdentityChange,
-                canSubmit: _canSubmit,
-                onDelete: widget.isEditing ? _confirmDelete : null,
-                onSubmit: _submit,
-              ),
-            ],
+        body: SelectionArea(
+          child: SafeArea(
+            child: Column(
+              children: [
+                AppHeader(
+                  screenName: screenName,
+                  searchController: _headerSearchController,
+                  onSearchChanged: (_) => setState(() {}),
+                  onBack: _maybePop,
+                  onUserTap: _openUserPage,
+                ),
+                GlobalPieceSearchResults(
+                  repository: widget.repository,
+                  searchController: _headerSearchController,
+                  onOpenPiece: _openSearchPiece,
+                  onCreatePiece: _openNewPiece,
+                ),
+                Expanded(
+                  child: widget.isEditing
+                      ? _buildEditBody(context, piece!)
+                      : _buildCreateBody(context),
+                ),
+                _EditorActionBar(
+                  isEditing: widget.isEditing,
+                  isIdentityChange: _isIdentityChange,
+                  canSubmit: _canSubmit,
+                  onDelete: widget.isEditing ? _confirmDelete : null,
+                  onSubmit: _submit,
+                ),
+              ],
+            ),
           ),
         ),
       ),

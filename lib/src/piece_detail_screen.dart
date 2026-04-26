@@ -210,76 +210,81 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            AppHeader(
-              screenName: _piece.mold.name,
-              searchController: _headerSearchController,
-              onSearchChanged: (_) => setState(() {}),
-              onBack: () => Navigator.of(context).maybePop(),
-              onUserTap: _openUserPage,
-            ),
-            GlobalPieceSearchResults(
-              repository: widget.repository,
-              searchController: _headerSearchController,
-              onOpenPiece: _openSearchPiece,
-              onCreatePiece: _openNewPiece,
-            ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  AppSection(
-                    child: AppResponsiveSplit(
-                      primary: _PieceDetailsPanel(
-                        piece: _piece,
-                        colorsLabel: _colorsLabel,
-                        ownerLabel: _ownerLabel,
-                        showMore: _showMore,
-                        onToggleMore: () {
-                          setState(() => _showMore = !_showMore);
-                        },
-                      ),
-                      secondary: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('MOLD IMAGE', style: AppTypography.sectionLabel),
-                          const SizedBox(height: 12),
-                          MoldImagePanel(
-                            imageReference: _piece.mold.imageReference,
-                            onUpload: _pickMoldImage,
-                            onUrlSubmitted: _setMoldImageUrl,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      body: SelectionArea(
+        child: SafeArea(
+          child: Column(
+            children: [
+              AppHeader(
+                screenName: _piece.mold.name,
+                searchController: _headerSearchController,
+                onSearchChanged: (_) => setState(() {}),
+                onBack: () => Navigator.of(context).maybePop(),
+                onUserTap: _openUserPage,
               ),
-            ),
-            AppActionBarShell(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      key: Key('piece-detail-delete-${_piece.id}'),
-                      onPressed: _deletePiece,
-                      child: const Text('Delete'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      key: Key('piece-detail-edit-${_piece.id}'),
-                      onPressed: _editPiece,
-                      child: const Text('Edit'),
-                    ),
-                  ),
-                ],
+              GlobalPieceSearchResults(
+                repository: widget.repository,
+                searchController: _headerSearchController,
+                onOpenPiece: _openSearchPiece,
+                onCreatePiece: _openNewPiece,
               ),
-            ),
-          ],
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    AppSection(
+                      child: AppResponsiveSplit(
+                        primary: _PieceDetailsPanel(
+                          piece: _piece,
+                          colorsLabel: _colorsLabel,
+                          ownerLabel: _ownerLabel,
+                          showMore: _showMore,
+                          onToggleMore: () {
+                            setState(() => _showMore = !_showMore);
+                          },
+                        ),
+                        secondary: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'MOLD IMAGE',
+                              style: AppTypography.sectionLabel,
+                            ),
+                            const SizedBox(height: 12),
+                            MoldImagePanel(
+                              imageReference: _piece.mold.imageReference,
+                              onUpload: _pickMoldImage,
+                              onUrlSubmitted: _setMoldImageUrl,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AppActionBarShell(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        key: Key('piece-detail-delete-${_piece.id}'),
+                        onPressed: _deletePiece,
+                        child: const Text('Delete'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        key: Key('piece-detail-edit-${_piece.id}'),
+                        onPressed: _editPiece,
+                        child: const Text('Edit'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

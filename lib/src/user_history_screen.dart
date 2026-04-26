@@ -84,31 +84,33 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            AppHeader(
-              screenName: widget.currentUser.name,
-              searchController: _searchController,
-              onSearchChanged: (_) => setState(() {}),
-              onBack: () => Navigator.of(context).maybePop(),
-              onUserTap: _openUserPage,
-            ),
-            GlobalPieceSearchResults(
-              repository: widget.repository,
-              searchController: _searchController,
-              onOpenPiece: _openPiece,
-              onCreatePiece: _openNewPiece,
-            ),
-            Expanded(
-              child: UserHistorySection(
-                repository: widget.repository,
-                currentUser: widget.currentUser,
-                searchQuery: _searchController.text,
-                onOpenPiece: _openPiece,
+      body: SelectionArea(
+        child: SafeArea(
+          child: Column(
+            children: [
+              AppHeader(
+                screenName: widget.currentUser.name,
+                searchController: _searchController,
+                onSearchChanged: (_) => setState(() {}),
+                onBack: () => Navigator.of(context).maybePop(),
+                onUserTap: _openUserPage,
               ),
-            ),
-          ],
+              GlobalPieceSearchResults(
+                repository: widget.repository,
+                searchController: _searchController,
+                onOpenPiece: _openPiece,
+                onCreatePiece: _openNewPiece,
+              ),
+              Expanded(
+                child: UserHistorySection(
+                  repository: widget.repository,
+                  currentUser: widget.currentUser,
+                  searchQuery: _searchController.text,
+                  onOpenPiece: _openPiece,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

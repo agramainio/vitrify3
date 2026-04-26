@@ -66,43 +66,45 @@ class _UserPageState extends State<UserPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            AppHeader(
-              screenName: widget.currentUser.name,
-              searchController: _searchController,
-              onSearchChanged: (_) => setState(() {}),
-              onBack: () => Navigator.of(context).maybePop(),
-              onUserTap: () {},
-            ),
-            GlobalPieceSearchResults(
-              repository: widget.repository,
-              searchController: _searchController,
-              onOpenPiece: _openPiece,
-              onCreatePiece: _openNewPiece,
-            ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: const [
-                  AppSection(
-                    child: AppResponsiveGrid(
-                      minItemWidth: 300,
-                      maxColumns: 2,
-                      children: [
-                        _UserPageSection(title: 'Profile'),
-                        _UserPageSection(title: 'Settings'),
-                        _UserPageSection(title: 'Configuration'),
-                        _UserPageSection(title: 'Help'),
-                        _UserPageSection(title: 'About'),
-                      ],
-                    ),
-                  ),
-                ],
+      body: SelectionArea(
+        child: SafeArea(
+          child: Column(
+            children: [
+              AppHeader(
+                screenName: widget.currentUser.name,
+                searchController: _searchController,
+                onSearchChanged: (_) => setState(() {}),
+                onBack: () => Navigator.of(context).maybePop(),
+                onUserTap: () {},
               ),
-            ),
-          ],
+              GlobalPieceSearchResults(
+                repository: widget.repository,
+                searchController: _searchController,
+                onOpenPiece: _openPiece,
+                onCreatePiece: _openNewPiece,
+              ),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: const [
+                    AppSection(
+                      child: AppResponsiveGrid(
+                        minItemWidth: 300,
+                        maxColumns: 2,
+                        children: [
+                          _UserPageSection(title: 'Profile'),
+                          _UserPageSection(title: 'Settings'),
+                          _UserPageSection(title: 'Configuration'),
+                          _UserPageSection(title: 'Help'),
+                          _UserPageSection(title: 'About'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

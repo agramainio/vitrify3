@@ -1,5 +1,16 @@
 import 'dart:typed_data';
 
+enum AtelierStatus {
+  active('active', 'Active'),
+  inactive('inactive', 'Inactive'),
+  testing('testing', 'Testing');
+
+  const AtelierStatus(this.id, this.label);
+
+  final String id;
+  final String label;
+}
+
 enum PieceStage {
   toFire('to_fire', 'To fire'),
   toGlaze('bisque_fired', 'To glaze'),
@@ -44,6 +55,28 @@ enum MoldSize {
 
   final String id;
   final String label;
+}
+
+class Atelier {
+  const Atelier({
+    required this.atelierId,
+    required this.name,
+    required this.alias,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.createdByUid,
+    required this.ownerUid,
+    required this.status,
+  });
+
+  final String atelierId;
+  final String name;
+  final String alias;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String createdByUid;
+  final String ownerUid;
+  final AtelierStatus status;
 }
 
 class Mold {
@@ -111,6 +144,11 @@ class MoldImageReference {
     this.mimeType,
     this.bytes,
     this.sourceUrl,
+    this.imageSource,
+    this.imagePath,
+    this.imageUrl,
+    this.uploadedAt,
+    this.uploadedByUid,
   });
 
   final String fileName;
@@ -118,7 +156,54 @@ class MoldImageReference {
   final int sizeBytes;
   final Uint8List? bytes;
   final String? sourceUrl;
+  final String? imageSource;
+  final String? imagePath;
+  final String? imageUrl;
+  final DateTime? uploadedAt;
+  final String? uploadedByUid;
+
+  MoldImageReference copyWith({
+    String? fileName,
+    String? mimeType,
+    int? sizeBytes,
+    Object? bytes = _imageSentinel,
+    Object? sourceUrl = _imageSentinel,
+    Object? imageSource = _imageSentinel,
+    Object? imagePath = _imageSentinel,
+    Object? imageUrl = _imageSentinel,
+    Object? uploadedAt = _imageSentinel,
+    Object? uploadedByUid = _imageSentinel,
+  }) {
+    return MoldImageReference(
+      fileName: fileName ?? this.fileName,
+      mimeType: mimeType ?? this.mimeType,
+      sizeBytes: sizeBytes ?? this.sizeBytes,
+      bytes: identical(bytes, _imageSentinel)
+          ? this.bytes
+          : bytes as Uint8List?,
+      sourceUrl: identical(sourceUrl, _imageSentinel)
+          ? this.sourceUrl
+          : sourceUrl as String?,
+      imageSource: identical(imageSource, _imageSentinel)
+          ? this.imageSource
+          : imageSource as String?,
+      imagePath: identical(imagePath, _imageSentinel)
+          ? this.imagePath
+          : imagePath as String?,
+      imageUrl: identical(imageUrl, _imageSentinel)
+          ? this.imageUrl
+          : imageUrl as String?,
+      uploadedAt: identical(uploadedAt, _imageSentinel)
+          ? this.uploadedAt
+          : uploadedAt as DateTime?,
+      uploadedByUid: identical(uploadedByUid, _imageSentinel)
+          ? this.uploadedByUid
+          : uploadedByUid as String?,
+    );
+  }
 }
+
+const Object _imageSentinel = Object();
 
 class StudioUser {
   const StudioUser({required this.id, required this.name});
@@ -277,6 +362,16 @@ CommercialState defaultCommercialStateForDestination(
 
 String normalizeSearch(String value) {
   return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+}
+
+String normalizeAlias(String value) {
+  final normalized = value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'-+'), '-')
+      .replaceAll(RegExp(r'^-|-$'), '');
+  return normalized.isEmpty ? 'atelier' : normalized;
 }
 
 String pieceIdSegment(String value) {

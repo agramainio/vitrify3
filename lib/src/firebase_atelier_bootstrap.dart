@@ -130,9 +130,18 @@ class FirebaseAtelierBootstrap {
   }
 
   static Future<User> _ensureSignedIn(FirebaseAuth auth) async {
-    final existing = auth.currentUser;
-    if (existing != null) {
-      return existing;
+    if (kIsWeb) {
+      await auth.setPersistence(Persistence.LOCAL);
+    }
+
+    final restored =
+        auth.currentUser ??
+        await auth.authStateChanges().first.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => auth.currentUser,
+        );
+    if (restored != null) {
+      return restored;
     }
 
     final credential = await auth.signInAnonymously();

@@ -61,6 +61,7 @@ class FirebaseAtelierBootstrap {
       storage: storage,
       atelier: activeAtelier,
       currentUser: currentUser,
+      environment: environment,
     );
 
     return FirebaseAtelierSession(

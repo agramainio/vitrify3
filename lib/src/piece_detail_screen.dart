@@ -130,6 +130,7 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
       return;
     }
 
+    _showRepositoryWarningIfAny();
     setState(() {
       _piece = _piece.copyWith(mold: updatedMold);
     });
@@ -156,9 +157,21 @@ class _PieceDetailScreenState extends State<PieceDetailScreen> {
       return;
     }
 
+    _showRepositoryWarningIfAny();
     setState(() {
       _piece = _piece.copyWith(mold: updatedMold);
     });
+  }
+
+  void _showRepositoryWarningIfAny() {
+    final warning = widget.repository.consumeLastWarning();
+    if (warning == null || !mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(warning)));
   }
 
   Future<void> _openUserPage() async {

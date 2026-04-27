@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'models.dart';
 
 abstract class StudioRepository extends Listenable {
+  String? consumeLastWarning();
+
   List<Mold> suggestMolds(String query, {int limit = 8});
 
   Mold? findExactMold(String query);

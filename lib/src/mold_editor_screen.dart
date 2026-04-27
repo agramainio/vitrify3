@@ -244,6 +244,7 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
         return;
       }
 
+      _showRepositoryWarningIfAny();
       setState(() => _allowExit = true);
       await WidgetsBinding.instance.endOfFrame;
       if (mounted) {
@@ -258,6 +259,17 @@ class _MoldEditorScreenState extends State<MoldEditorScreen> {
         _submitError = error.message;
       });
     }
+  }
+
+  void _showRepositoryWarningIfAny() {
+    final warning = widget.repository.consumeLastWarning();
+    if (warning == null || !mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(warning)));
   }
 
   Future<void> _openSearchPiece(Piece piece) async {

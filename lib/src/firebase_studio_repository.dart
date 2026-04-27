@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
+import 'app_environment.dart';
 import 'models.dart';
 import 'studio_repository.dart';
 
@@ -15,22 +16,26 @@ class FirebaseStudioRepository extends ChangeNotifier
     required FirebaseStorage storage,
     required Atelier atelier,
     required StudioUser currentUser,
+    required VitrifyEnvironment environment,
   }) : _firestore = firestore,
        _storage = storage,
        _atelier = atelier,
-       _currentUser = currentUser;
+       _currentUser = currentUser,
+       _environment = environment;
 
   static Future<FirebaseStudioRepository> create({
     required FirebaseFirestore firestore,
     required FirebaseStorage storage,
     required Atelier atelier,
     required StudioUser currentUser,
+    required VitrifyEnvironment environment,
   }) async {
     final repository = FirebaseStudioRepository._(
       firestore: firestore,
       storage: storage,
       atelier: atelier,
       currentUser: currentUser,
+      environment: environment,
     );
     await repository._loadInitialData();
     repository._startListeners();
@@ -41,6 +46,7 @@ class FirebaseStudioRepository extends ChangeNotifier
   final FirebaseStorage _storage;
   final Atelier _atelier;
   final StudioUser _currentUser;
+  final VitrifyEnvironment _environment;
   final Random _random = Random();
   final Set<String> _reservedGeneratedPieceIds = <String>{};
   final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
@@ -50,6 +56,19 @@ class FirebaseStudioRepository extends ChangeNotifier
   List<StudioColor> _colors = <StudioColor>[];
   List<LinkedRecord> _linkedRecords = <LinkedRecord>[];
   List<Piece> _pieces = <Piece>[];
+  String? _lastWarning;
+
+  @override
+  String? consumeLastWarning() {
+    final warning = _lastWarning;
+    _lastWarning = null;
+    return warning;
+  }
+
+  void _recordWarning(String warning) {
+    _lastWarning = warning;
+    notifyListeners();
+  }
 
   DocumentReference<Map<String, dynamic>> get _atelierDoc {
     return _firestore.collection('ateliers').doc(_atelier.atelierId);
@@ -244,9 +263,17 @@ class FirebaseStudioRepository extends ChangeNotifier
     }
 
     final now = DateTime.now();
+    MoldImageReference? existingImage;
+    for (final item in _molds) {
+      if (item.id == mold.id) {
+        existingImage = item.imageReference;
+        break;
+      }
+    }
     final persistedImage = await _persistImageReference(
       mold.imageReference,
       moldId: mold.id,
+      fallbackOnUploadFailure: existingImage,
     );
     final saved = mold.copyWith(imageReference: persistedImage);
     await _moldsCollection
@@ -490,25 +517,31 @@ class FirebaseStudioRepository extends ChangeNotifier
   Future<MoldImageReference?> _persistImageReference(
     MoldImageReference? imageReference, {
     required String moldId,
+    MoldImageReference? fallbackOnUploadFailure,
   }) async {
     if (imageReference == null) {
       return null;
     }
 
-    final externalUrl = imageReference.sourceUrl?.trim();
-    if (imageReference.bytes == null &&
-        externalUrl != null &&
-        externalUrl.isNotEmpty) {
-      return imageReference.copyWith(
-        bytes: null,
-        imageSource: 'external_url',
-        imagePath: null,
-        imageUrl: externalUrl,
-      );
-    }
-
     final bytes = imageReference.bytes;
     if (bytes == null) {
+      final hasStoragePath =
+          imageReference.imageSource == 'storage' ||
+          (imageReference.imagePath?.trim().isNotEmpty ?? false);
+      if (hasStoragePath) {
+        return imageReference.copyWith(bytes: null);
+      }
+
+      final externalUrl = imageReference.sourceUrl?.trim();
+      if (externalUrl != null && externalUrl.isNotEmpty) {
+        return imageReference.copyWith(
+          bytes: null,
+          imageSource: 'external_url',
+          imagePath: null,
+          imageUrl: externalUrl,
+        );
+      }
+
       return imageReference;
     }
 
@@ -516,8 +549,24 @@ class FirebaseStudioRepository extends ChangeNotifier
     final extension = _imageExtension(imageReference.fileName, contentType);
     final path = 'ateliers/${_atelier.atelierId}/molds/$moldId/main.$extension';
     final reference = _storage.ref(path);
-    await reference.putData(bytes, SettableMetadata(contentType: contentType));
-    final downloadUrl = await reference.getDownloadURL();
+    String downloadUrl;
+    try {
+      await reference.putData(
+        bytes,
+        SettableMetadata(contentType: contentType),
+      );
+      downloadUrl = await reference.getDownloadURL();
+    } on FirebaseException {
+      if (_environment != VitrifyEnvironment.staging) {
+        rethrow;
+      }
+
+      _recordWarning(
+        'Image upload is unavailable in staging because Firebase Storage is not enabled. '
+        'The mold was saved without the uploaded image. Paste an image URL to attach one for now.',
+      );
+      return fallbackOnUploadFailure;
+    }
     final uploadedAt = DateTime.now();
 
     return imageReference.copyWith(

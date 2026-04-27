@@ -167,6 +167,9 @@ class DemoStudioRepository extends ChangeNotifier implements StudioRepository {
   int _linkCounter = 100;
 
   @override
+  String? consumeLastWarning() => null;
+
+  @override
   List<Mold> suggestMolds(String query, {int limit = 8}) {
     return _sortByStartsWith(
       items: _molds.where((item) => item.active).toList(growable: false),

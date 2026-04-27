@@ -11,11 +11,13 @@ class UserPage extends StatefulWidget {
   const UserPage({
     required this.repository,
     required this.currentUser,
+    this.onSignOut,
     super.key,
   });
 
   final StudioRepository repository;
   final StudioUser currentUser;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<UserPage> createState() => _UserPageState();
@@ -86,14 +88,26 @@ class _UserPageState extends State<UserPage> {
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.zero,
-                  children: const [
+                  children: [
                     AppSection(
                       child: AppResponsiveGrid(
                         minItemWidth: 300,
                         maxColumns: 2,
                         children: [
-                          _UserPageSection(title: 'Profile'),
-                          _UserPageSection(title: 'Settings'),
+                          _UserPageSection(
+                            title: 'Profile',
+                            child: const Text('Signed in'),
+                          ),
+                          _UserPageSection(
+                            title: 'Settings',
+                            child: widget.onSignOut == null
+                                ? const Text('Coming soon')
+                                : FilledButton(
+                                    key: const Key('sign-out-button'),
+                                    onPressed: widget.onSignOut,
+                                    child: const Text('Sign out'),
+                                  ),
+                          ),
                           _UserPageSection(title: 'Configuration'),
                           _UserPageSection(title: 'Help'),
                           _UserPageSection(title: 'About'),
@@ -112,9 +126,10 @@ class _UserPageState extends State<UserPage> {
 }
 
 class _UserPageSection extends StatelessWidget {
-  const _UserPageSection({required this.title});
+  const _UserPageSection({required this.title, this.child});
 
   final String title;
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +140,11 @@ class _UserPageSection extends StatelessWidget {
           Expanded(
             child: Text(title, style: Theme.of(context).textTheme.bodyLarge),
           ),
-          Text('Coming soon', style: Theme.of(context).textTheme.labelMedium),
+          child ??
+              Text(
+                'Coming soon',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
         ],
       ),
     );

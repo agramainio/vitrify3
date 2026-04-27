@@ -15,11 +15,13 @@ class BenchScreen extends StatefulWidget {
   const BenchScreen({
     required this.repository,
     required this.currentUser,
+    this.onSignOut,
     super.key,
   });
 
   final StudioRepository repository;
   final StudioUser currentUser;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<BenchScreen> createState() => _BenchScreenState();
@@ -87,6 +89,7 @@ class _BenchScreenState extends State<BenchScreen> {
         builder: (context) => UserPage(
           repository: widget.repository,
           currentUser: widget.currentUser,
+          onSignOut: widget.onSignOut,
         ),
       ),
     );

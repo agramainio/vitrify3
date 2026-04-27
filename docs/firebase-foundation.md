@@ -36,6 +36,25 @@ origin + anonymous Firebase user + activeAtelierId
 
 This means data created on a preview URL is not expected to appear automatically on `https://vitrify3.web.app`, because browser auth/local storage is origin-scoped. Data created on `https://vitrify3.web.app` should survive refresh in the same browser profile. If it does not, check whether the anonymous UID changed after refresh; a changed UID creates or loads a different atelier and the previous data will still exist in Firestore under the earlier atelier.
 
+## Email/Password staging identity
+
+Email/Password Auth is the durable staging path. The login account is separate from the atelier:
+
+```text
+users/{uid} = login profile
+ateliers/{atelierId} = operational tenant/workspace
+ateliers/{atelierId}/members/{uid} = future role/membership anchor
+```
+
+Operational data must stay under `ateliers/{atelierId}/...`, never under `users/{uid}/...`.
+
+Current login options:
+
+- Email/Password for durable access.
+- Temporary anonymous user for staging-only testing.
+
+Future production login options may include Email link / magic link, Google, and possibly Apple. Those should still resolve to a Firebase Auth user that owns or belongs to an atelier.
+
 ## Storage rules deployment
 
 Do not deploy Storage rules until the Firebase project has a real Storage bucket. Some Firebase projects cannot create a no-cost bucket in the selected region; deploying Storage rules before a bucket exists can fail or create confusion during staging setup.

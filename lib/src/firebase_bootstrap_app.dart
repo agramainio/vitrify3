@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'app_environment.dart';
+import 'atelier_setup_screen.dart';
+import 'auth_screen.dart';
 import 'design_system.dart';
 import 'firebase_atelier_bootstrap.dart';
+
+enum _BootstrapStage { loading, auth, atelierSetup, ready, error }
 
 class FirebaseBootstrapApp extends StatefulWidget {
   const FirebaseBootstrapApp({required this.environment, super.key});
@@ -19,7 +23,7 @@ class _FirebaseBootstrapAppState extends State<FirebaseBootstrapApp> {
   FirebaseAtelierSession? _session;
   Object? _error;
   StackTrace? _stackTrace;
-  bool _loading = true;
+  _BootstrapStage _stage = _BootstrapStage.loading;
 
   @override
   void initState() {
@@ -29,21 +33,28 @@ class _FirebaseBootstrapAppState extends State<FirebaseBootstrapApp> {
 
   Future<void> _start() async {
     setState(() {
-      _loading = true;
+      _stage = _BootstrapStage.loading;
       _error = null;
       _stackTrace = null;
     });
 
     try {
-      final session = await FirebaseAtelierBootstrap.start(widget.environment);
+      final user = await FirebaseAtelierBootstrap.restoreCurrentUser(
+        widget.environment,
+      );
       if (!mounted) {
         return;
       }
 
-      setState(() {
-        _session = session;
-        _loading = false;
-      });
+      if (user == null) {
+        setState(() {
+          _session = null;
+          _stage = _BootstrapStage.auth;
+        });
+        return;
+      }
+
+      await _loadCurrentSession();
     } catch (error, stackTrace) {
       if (!mounted) {
         return;
@@ -53,14 +64,33 @@ class _FirebaseBootstrapAppState extends State<FirebaseBootstrapApp> {
         _session = null;
         _error = error;
         _stackTrace = stackTrace;
-        _loading = false;
+        _stage = _BootstrapStage.error;
       });
     }
   }
 
+  Future<void> _loadCurrentSession({
+    bool createTemporaryAtelierIfMissing = false,
+  }) async {
+    final session = await FirebaseAtelierBootstrap.loadSessionForCurrentUser(
+      widget.environment,
+      createTemporaryAtelierIfMissing: createTemporaryAtelierIfMissing,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _session = session;
+      _stage = session == null
+          ? _BootstrapStage.atelierSetup
+          : _BootstrapStage.ready;
+    });
+  }
+
   Future<void> _resetAndRetry() async {
     setState(() {
-      _loading = true;
+      _stage = _BootstrapStage.loading;
       _error = null;
       _stackTrace = null;
     });
@@ -76,14 +106,71 @@ class _FirebaseBootstrapAppState extends State<FirebaseBootstrapApp> {
     await _start();
   }
 
+  Future<void> _createAccount(String email, String password) async {
+    await FirebaseAtelierBootstrap.createAccount(
+      environment: widget.environment,
+      email: email,
+      password: password,
+    );
+    await _loadCurrentSession();
+  }
+
+  Future<void> _login(String email, String password) async {
+    await FirebaseAtelierBootstrap.signInWithEmail(
+      environment: widget.environment,
+      email: email,
+      password: password,
+    );
+    await _loadCurrentSession();
+  }
+
+  Future<void> _forgotPassword(String email) async {
+    await FirebaseAtelierBootstrap.sendPasswordResetEmail(
+      environment: widget.environment,
+      email: email,
+    );
+  }
+
+  Future<void> _temporaryTestUser() async {
+    await FirebaseAtelierBootstrap.signInAnonymouslyForTesting(
+      widget.environment,
+    );
+    await _loadCurrentSession(createTemporaryAtelierIfMissing: true);
+  }
+
+  Future<void> _createAtelier(String name, String alias) async {
+    await FirebaseAtelierBootstrap.createAtelierForCurrentUser(
+      environment: widget.environment,
+      name: name,
+      alias: alias,
+    );
+    await _loadCurrentSession();
+  }
+
+  Future<void> _signOut() async {
+    setState(() => _stage = _BootstrapStage.loading);
+    await FirebaseAtelierBootstrap.signOut(widget.environment);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _session = null;
+      _error = null;
+      _stackTrace = null;
+      _stage = _BootstrapStage.auth;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = _session;
-    if (session != null) {
+    if (_stage == _BootstrapStage.ready && session != null) {
       return VitrifyApp(
         repository: session.repository,
         initialUser: session.currentUser,
         persistUser: false,
+        onSignOut: _signOut,
       );
     }
 
@@ -91,15 +178,30 @@ class _FirebaseBootstrapAppState extends State<FirebaseBootstrapApp> {
       title: 'Vitrify',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(),
-      home: _loading
-          ? _BootstrapLoadingScreen(environment: widget.environment)
-          : _BootstrapErrorScreen(
-              environment: widget.environment,
-              error: _error,
-              stackTrace: _stackTrace,
-              onRetry: _start,
-              onResetLocalState: _resetAndRetry,
-            ),
+      home: switch (_stage) {
+        _BootstrapStage.loading => _BootstrapLoadingScreen(
+          environment: widget.environment,
+        ),
+        _BootstrapStage.auth => AuthScreen(
+          onCreateAccount: _createAccount,
+          onLogin: _login,
+          onForgotPassword: _forgotPassword,
+          onTemporaryTestUser: _temporaryTestUser,
+        ),
+        _BootstrapStage.atelierSetup => AtelierSetupScreen(
+          onSubmit: _createAtelier,
+        ),
+        _BootstrapStage.error => _BootstrapErrorScreen(
+          environment: widget.environment,
+          error: _error,
+          stackTrace: _stackTrace,
+          onRetry: _start,
+          onResetLocalState: _resetAndRetry,
+        ),
+        _BootstrapStage.ready => _BootstrapLoadingScreen(
+          environment: widget.environment,
+        ),
+      },
     );
   }
 }

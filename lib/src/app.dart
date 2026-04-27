@@ -11,12 +11,14 @@ class VitrifyApp extends StatefulWidget {
     required this.repository,
     this.initialUser,
     this.persistUser = true,
+    this.onSignOut,
     super.key,
   });
 
   final StudioRepository repository;
   final StudioUser? initialUser;
   final bool persistUser;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<VitrifyApp> createState() => _VitrifyAppState();
@@ -100,7 +102,11 @@ class _VitrifyAppState extends State<VitrifyApp> {
           ? const _LoadingShell()
           : _user == null
           ? _UserSetupScreen(onSubmit: _saveUser)
-          : BenchScreen(repository: widget.repository, currentUser: _user!),
+          : BenchScreen(
+              repository: widget.repository,
+              currentUser: _user!,
+              onSignOut: widget.onSignOut,
+            ),
     );
   }
 }

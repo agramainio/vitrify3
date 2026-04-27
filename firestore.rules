@@ -18,6 +18,19 @@ service cloud.firestore {
       return signedIn() && atelierData(atelierId).ownerUid == request.auth.uid;
     }
 
+    function ownsAtelierResource() {
+      return signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    function isAtelierMember(atelierId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/ateliers/$(atelierId)/members/$(request.auth.uid));
+    }
+
+    function canAccessAtelier(atelierId) {
+      return ownsAtelier(atelierId) || isAtelierMember(atelierId);
+    }
+
     function validAtelierStatus(status) {
       return status in ['active', 'inactive', 'testing'];
     }
@@ -55,24 +68,58 @@ service cloud.firestore {
         || request.resource.data.createdByUid == resource.data.createdByUid;
     }
 
+    function validUserProfile(userId) {
+      return request.resource.data.uid == userId
+        && (!('email' in request.resource.data) || request.resource.data.email is string || request.resource.data.email == null)
+        && (!('displayName' in request.resource.data) || request.resource.data.displayName is string || request.resource.data.displayName == null)
+        && (!('activeAtelierId' in request.resource.data) || request.resource.data.activeAtelierId is string)
+        && request.resource.data.status in ['active', 'temporary', 'inactive'];
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && userId == request.auth.uid
+        && validUserProfile(userId);
+      allow read: if signedIn() && userId == request.auth.uid;
+      allow update: if signedIn()
+        && userId == request.auth.uid
+        && resource.data.uid == request.auth.uid
+        && validUserProfile(userId);
+      allow delete: if false;
+    }
+
     match /ateliers/{atelierId} {
       allow create: if createsOwnAtelier();
-      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow read: if ownsAtelierResource() || isAtelierMember(atelierId);
       allow update: if signedIn()
         && resource.data.ownerUid == request.auth.uid
         && keepsAtelierOwnership()
         && validAtelierStatus(request.resource.data.status);
       allow delete: if false;
 
-      match /{collectionName}/{documentId} {
-        allow read: if ownsAtelier(atelierId);
+      match /members/{memberId} {
+        allow read: if signedIn()
+          && (resource.data.uid == request.auth.uid || ownsAtelier(atelierId));
         allow create: if ownsAtelier(atelierId)
+          && request.resource.data.uid == memberId
+          && request.resource.data.role in ['owner', 'admin', 'staff', 'assistant', 'read-only']
+          && request.resource.data.status in ['active', 'temporary', 'inactive'];
+        allow update: if ownsAtelier(atelierId)
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.role in ['owner', 'admin', 'staff', 'assistant', 'read-only']
+          && request.resource.data.status in ['active', 'temporary', 'inactive'];
+        allow delete: if ownsAtelier(atelierId);
+      }
+
+      match /{collectionName}/{documentId} {
+        allow read: if canAccessAtelier(atelierId);
+        allow create: if canAccessAtelier(atelierId)
           && scopedToAtelier(atelierId)
           && createDoesNotSpoofUser();
-        allow update: if ownsAtelier(atelierId)
+        allow update: if canAccessAtelier(atelierId)
           && scopedToAtelier(atelierId)
           && updateDoesNotSpoofUser();
-        allow delete: if ownsAtelier(atelierId);
+        allow delete: if canAccessAtelier(atelierId);
       }
     }
 
@@ -85,6 +132,10 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.atelierId is string;
       allow update, delete: if false;
+    }
+
+    match /{path=**}/members/{memberId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
     match /{document=**} {

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'src/app_environment.dart';
 import 'src/app.dart';
 import 'src/demo_studio_repository.dart';
-import 'src/firebase_atelier_bootstrap.dart';
+import 'src/firebase_bootstrap_app.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   final environment = VitrifyEnvironment.fromBuildConfig();
@@ -14,12 +14,5 @@ Future<void> main() async {
     return;
   }
 
-  final session = await FirebaseAtelierBootstrap.start(environment);
-  runApp(
-    VitrifyApp(
-      repository: session.repository,
-      initialUser: session.currentUser,
-      persistUser: false,
-    ),
-  );
+  runApp(FirebaseBootstrapApp(environment: environment));
 }

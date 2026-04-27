@@ -37,3 +37,19 @@ firebase deploy --only storage
 ```
 
 Until Storage is enabled in staging, uploaded mold image files fail gracefully and the mold is saved without storing file bytes in Firestore. External image URLs remain supported and are stored as Firestore metadata.
+
+In staging preview builds without a working Storage bucket, the browser console may show a request similar to:
+
+```text
+POST https://firebasestorage.googleapis.com/... 403 (Forbidden)
+```
+
+That console error is expected during the temporary no-bucket staging period. The acceptance behavior is:
+
+- The app starts normally.
+- Mold creation is not blocked by the failed upload.
+- The mold document persists after refresh.
+- Firestore does not store base64 image bytes.
+- External image URLs still work.
+
+After a real Storage bucket exists and `storage.rules` has been deployed, this `403` should be treated as a real configuration or rules issue.

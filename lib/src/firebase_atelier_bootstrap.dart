@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
@@ -9,6 +10,7 @@ import 'app_environment.dart';
 import 'firebase_studio_repository.dart';
 import 'models.dart';
 import 'studio_repository.dart';
+import 'web_plugin_safety.dart';
 
 class FirebaseAtelierSession {
   const FirebaseAtelierSession({
@@ -25,6 +27,8 @@ class FirebaseAtelierSession {
 class FirebaseAtelierBootstrap {
   const FirebaseAtelierBootstrap._();
 
+  static bool _servicesConfigured = false;
+
   static Future<FirebaseAtelierSession> start(
     VitrifyEnvironment environment,
   ) async {
@@ -32,18 +36,25 @@ class FirebaseAtelierBootstrap {
       throw StateError('Firebase bootstrap cannot run in demo mode.');
     }
 
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    ensureWebPluginsRegistered();
+
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
 
     final auth = FirebaseAuth.instance;
     final firestore = FirebaseFirestore.instance;
     final storage = FirebaseStorage.instance;
 
-    if (environment == VitrifyEnvironment.emulator) {
-      await _connectEmulators(auth, firestore, storage);
-    } else {
-      firestore.settings = const Settings(persistenceEnabled: true);
+    if (!_servicesConfigured) {
+      if (environment == VitrifyEnvironment.emulator) {
+        await _connectEmulators(auth, firestore, storage);
+      } else {
+        firestore.settings = const Settings(persistenceEnabled: true);
+      }
+      _servicesConfigured = true;
     }
 
     final firebaseUser = await _ensureSignedIn(auth);
@@ -69,6 +80,38 @@ class FirebaseAtelierBootstrap {
       currentUser: currentUser,
       activeAtelier: activeAtelier,
     );
+  }
+
+  static Future<void> clearLocalBootstrapStateForCurrentUser(
+    VitrifyEnvironment environment,
+  ) async {
+    ensureWebPluginsRegistered();
+
+    String? uid;
+    try {
+      if (Firebase.apps.isNotEmpty) {
+        uid = FirebaseAuth.instance.currentUser?.uid;
+      }
+    } catch (_) {
+      uid = null;
+    }
+
+    await clearLocalBootstrapState(environment, uid: uid);
+  }
+
+  static Future<void> clearLocalBootstrapState(
+    VitrifyEnvironment environment, {
+    String? uid,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    final prefix = _activeAtelierPreferencePrefix(environment);
+    final exactKey = uid == null || uid.isEmpty ? null : '$prefix$uid';
+
+    for (final key in preferences.getKeys()) {
+      if (key == exactKey || key.startsWith(prefix)) {
+        await preferences.remove(key);
+      }
+    }
   }
 
   static Future<void> _connectEmulators(
@@ -120,15 +163,25 @@ class FirebaseAtelierBootstrap {
     required VitrifyEnvironment environment,
   }) async {
     final preferences = await SharedPreferences.getInstance();
-    final preferenceKey = 'vitrify_active_atelier_${environment.name}_$uid';
+    final preferenceKey = _activeAtelierPreferenceKey(environment, uid);
     final savedAtelierId = preferences.getString(preferenceKey);
     if (savedAtelierId != null && savedAtelierId.isNotEmpty) {
-      final saved = await firestore
-          .collection('ateliers')
-          .doc(savedAtelierId)
-          .get();
-      if (saved.exists && saved.data()?['ownerUid'] == uid) {
-        return _atelierFromSnapshot(saved);
+      try {
+        final saved = await firestore
+            .collection('ateliers')
+            .doc(savedAtelierId)
+            .get();
+        if (saved.exists && saved.data()?['ownerUid'] == uid) {
+          return _atelierFromSnapshot(saved);
+        }
+        await preferences.remove(preferenceKey);
+      } on FirebaseException catch (error, stackTrace) {
+        await preferences.remove(preferenceKey);
+        _logFirebaseException(
+          'Could not read saved activeAtelierId "$savedAtelierId"; clearing local state and continuing.',
+          error,
+          stackTrace,
+        );
       }
     }
 
@@ -150,6 +203,28 @@ class FirebaseAtelierBootstrap {
     );
     await preferences.setString(preferenceKey, created.atelierId);
     return created;
+  }
+
+  static String _activeAtelierPreferencePrefix(VitrifyEnvironment environment) {
+    return 'vitrify_active_atelier_${environment.name}_';
+  }
+
+  static String _activeAtelierPreferenceKey(
+    VitrifyEnvironment environment,
+    String uid,
+  ) {
+    return '${_activeAtelierPreferencePrefix(environment)}$uid';
+  }
+
+  static void _logFirebaseException(
+    String context,
+    FirebaseException error,
+    StackTrace stackTrace,
+  ) {
+    debugPrint(
+      '$context FirebaseException(${error.plugin}/${error.code}): ${error.message}',
+    );
+    debugPrintStack(stackTrace: stackTrace);
   }
 
   static Future<Atelier> _createDefaultTestingAtelier({
